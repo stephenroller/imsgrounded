@@ -5,47 +5,48 @@ A general library for handling Tab Seperated Value files.
 """
 
 import csv
+
 from itertools import izip
+
+def parse_tsv(line_iter, delim="\t", strip=True):
+    for line in line_iter:
+        if strip:
+            line = line.strip()
+        # always use unicode
+        line = unicode(line.decode("utf-8")).encode("utf-8")
+        yield tuple(line.split("\t"))
 
 def read_tsv(file_or_filename, headers=False, delim="\t", parsers=None):
     if not isinstance(file_or_filename, file):
         file_or_filename = open(file_or_filename)
 
-    kwargs = dict(delimiter=delim)
+    tsv_reader = parse_tsv(file_or_filename, delim, True)
 
-    if headers is False:
-        # no header names. Emit tuples.
-        assert parsers is None or isinstance(parsers, (list, tuple))
-        csv_reader = csv.csvreader(file_or_filename, **kwargs)
-    elif headers is True:
+    if headers is True:
         # first line is the header. Read it in. Emit dicts.
-        assert parsers is None or isinstance(parsers, dict)
-        csv_reader = csv.DictReader(file_or_filename, **kwargs)
-    else:
-        # header names actually specified.
-        assert parsers is None or isinstance(parsers, dict)
-        csv_reader = csv.DictReader(file_or_filename, fieldnames=headers, **kwargs)
+        headers = tsv_reader.next()
 
+    if isinstance(parsers, (tuple, list)):
+        # parsers is a list of type converters. go ahead and apply them.
+        tsv_reader = (f(x) for f, x in zip(parsers, row) for row in tsv_reader)
 
-    for row in csv_reader:
-        if headers is True:
-            row = dict(zip(headers, row))
-        if parsers:
-            if headers is False:
-                row = tuple(f(x) for f, x in izip(parsers, row))
-            else:
-                for k in row.keys():
-                    row[k] = unicode(row[k], 'utf-8')
-                for k,f in parsers.iteritems():
-                    row[k] = f(row[k])
-        yield row
+    if headers:
+        tsv_reader = (dict(zip(headers, row)) for row in tsv_reader)
+
+    if isinstance(parsers, dict):
+        assert headers, "We have to have headers to convert to a dictionary!"
+        tsv_reader = ( {k : (k in parsers and parsers[k](v) or v)
+                       for k, v in row.iteritems() }
+                       for row in tsv_reader )
+
+    return tsv_reader
 
 
 def safe_encode(row):
     if isinstance(row, (tuple, list)):
         return [unicode(v).encode('utf-8') for v in row]
     elif isinstance(row, dict):
-        return { k: unicode(v).encode('utf-8') for k,v in row.iteritems() }
+        return { k: unicode(v.decode("utf-8")).encode('utf-8') for k,v in row.iteritems() }
     else:
         raise ArgumentError, "I don't know how to handle data of type '%s'." % typeof(row)
 
