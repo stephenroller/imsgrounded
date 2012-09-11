@@ -42,6 +42,7 @@ if __name__ == '__main__':
             continue
         for result in gimages(query):
             query_nice  = query.decode("utf-8").replace(" ", "_")
-            print u"%s\t%s" % (query_nice, result)
+            outstr = u"%s\t%s" % (query_nice, result)
+            print unicode(outstr).encode("utf-8")
         sys.stderr.write("%d complete...\n" % (i+1))
 
