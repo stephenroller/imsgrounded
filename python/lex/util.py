@@ -19,4 +19,10 @@ def openfile(filename):
         #logger.info("Loading %s as plain file." % filename)
         return open(filename)
 
+def remove_pos(word):
+    return word[:word.rindex('/')]
+
+def normalize(word):
+    return word
+
 

@@ -3,29 +3,23 @@
 import sys
 import argparse
 
-import util
 import tsv
+from util import remove_pos, normalize, openfile
 
-def read_corpus(files):
-    for file in files:
-        reader = tsv.read_tsv(file, ('target', 'context', 'value'), parsers={'value': unicode})
-        for row in reader:
-            yield row
-
-def remove_pos(word):
-    return word[:word.rindex('/')]
-
-def filter_corpus(corpus, whitewords, has_pos=False):
+def filter_corpus(corpus, whitewords, has_pos=False, is_sorted=False):
+    last_element = is_sorted and max(whitewords) or None
     for row in corpus:
         # remove pos if necessary
-        target = has_pos and row['target'] or remove_pos(row['target'])
+        target = has_pos and row[0] or remove_pos(row[0])
         # normalize
-        target = normalize(target)
-        if target in whitewords:
+        target_norm = normalize(target)
+        if target_norm in whitewords:
             yield row
-
-def normalize(word):
-    return word.lower()
+        if last_element and not target.startswith(last_element) and target > last_element:
+            # the incoming vector space is sorted, so we
+            # know we've already seen the last word we're looking for.
+            # no need to seek through the whole thing.
+            break
 
 def read_whitelist(file):
     words = file.read().split()
@@ -35,12 +29,14 @@ def read_whitelist(file):
 def main():
     parser = argparse.ArgumentParser(
                 description='Extracts vectors from a TSV file of many vectors.')
-    parser.add_argument("--input", "-i", action="append", type=util.openfile,
+    parser.add_argument("--input", "-i", action="append", type=openfile,
                         metavar="FILE", help='The input vector space.')
-    parser.add_argument('--whitelist', '-w', metavar='FILE', type=util.openfile,
+    parser.add_argument('--whitelist', '-w', metavar='FILE', type=openfile,
                         help='The list of target vectors to search for.')
     parser.add_argument('word', nargs='*', metavar='WORD',
                         help='Command line specified additional words.')
+    parser.add_argument('--sorted', '-s', action='store_true',
+                        help='Indicates the incoming vector space is sorted, allowing for optimization.')
     parser.add_argument('--pos', '-p', action='store_true',
                         help='Marks that the whitelist has POS tags specified.')
     args = parser.parse_args()
@@ -51,10 +47,10 @@ def main():
 
     whitewords.update([normalize(w) for w in args.word])
 
-    corpus = read_corpus(args.input)
-    filtered = filter_corpus(corpus, whitewords, args.pos)
+    corpus = tsv.read_many_tsv(args.input, False)
+    filtered = filter_corpus(corpus, whitewords, args.pos, is_sorted=args.sorted)
 
-    tsv.print_tsv(filtered, ('target', 'context', 'value'), False)
+    tsv.print_tsv(filtered, write_header=False)
 
 
 if __name__ == '__main__':

@@ -5,8 +5,9 @@ A general library for handling Tab Seperated Value files.
 """
 
 import csv
+from collections import OrderedDict
 
-from itertools import izip
+from itertools import izip, chain
 
 def parse_tsv(line_iter, delim="\t", strip=True):
     for line in line_iter:
@@ -31,7 +32,7 @@ def read_tsv(file_or_filename, headers=False, delim="\t", parsers=None):
         tsv_reader = (f(x) for f, x in zip(parsers, row) for row in tsv_reader)
 
     if headers:
-        tsv_reader = (dict(zip(headers, row)) for row in tsv_reader)
+        tsv_reader = (OrderedDict(zip(headers, row)) for row in tsv_reader)
 
     if isinstance(parsers, dict):
         assert headers, "We have to have headers to convert to a dictionary!"
@@ -42,39 +43,52 @@ def read_tsv(file_or_filename, headers=False, delim="\t", parsers=None):
     return tsv_reader
 
 
+def read_many_tsv(files_or_filenames, *args, **kwargs):
+    return chain(*[read_tsv(f, *args, **kwargs) for f in files_or_filenames])
+
 def safe_encode(row):
-    if isinstance(row, (tuple, list)):
-        return [unicode(v).encode('utf-8') for v in row]
+    if isinstance(row, (str, unicode)):
+        return unicode(row.decode("utf-8")).encode("utf-8")
+    elif isinstance(row, (int, float)):
+        return unicode(row)
+    elif isinstance(row, (tuple, list)):
+        return [safe_encode(v) for v in row]
     elif isinstance(row, dict):
-        return { k: unicode(v.decode("utf-8")).encode('utf-8') for k,v in row.iteritems() }
+        return { k: safe_encode(v) for k,v in row.iteritems() }
     else:
-        raise ArgumentError, "I don't know how to handle data of type '%s'." % typeof(row)
+        raise ValueError, "I don't know how to handle data of type '%s'." % typeof(row)
 
 def write_tsv(file_or_filename, data, headers=None, write_header=True, delim="\t"):
     if not isinstance(file_or_filename, file):
         file_or_filename = open(file_or_filename, 'w')
 
-    kwargs = dict(delimiter=delim)
-
-    first_row = data.next()
-    if isinstance(first_row, dict):
-        if not headers:
-            fieldnames = sorted(first_row.keys())
+    first_row = iter(data).next()
+    fieldnames = headers
+    if headers is True:
+        if isinstance(first_row, dict):
+            fieldnames = first_row.keys()
         else:
-            fieldnames = headers
-        csv_writer = csv.DictWriter(file_or_filename, fieldnames, **kwargs)
-        if write_header:
-            csv_writer.writeheader()
-        csv_writer.writerow(safe_encode(first_row))
-    else:
-        csv_writer = csv.writer(file_or_filename, **kwargs)
-        if write_header:
-            assert isinstance(headers, (list, tuple))
-            csv_writer.writerow(safe_encode(headers))
-        csv_writer.writerow(safe_encode(first_row))
+            fieldnames = first_row
+
+    if fieldnames and write_header:
+        outstr = safe_encode(delim.join(fieldnames) + "\n")
+        file_or_filename.write(outstr)
+
+    if isinstance(first_row, dict) or fieldnames is headers:
+        data = chain([first_row], data)
 
     for row in data:
-        csv_writer.writerow(safe_encode(row))
+        row = safe_encode(row)
+        if isinstance(row, dict):
+            write_order = [row[field] for field in fieldnames]
+            outstr = delim.join(write_order) + "\n"
+        else:
+            outstr = delim.join(row) + "\n"
+        try:
+            file_or_filename.write(outstr)
+        except IOError:
+            break
+
 
 def print_tsv(data, headers=None, write_header=True, delim="\t"):
     import sys
