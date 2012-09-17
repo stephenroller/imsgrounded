@@ -54,8 +54,11 @@ def join_on(keys, left, right):
         intersections = []
         for (left_keyname, right_keyname), index in izip(keys, right_indexes):
             join_value = row[left_keyname]
-            intersections.append(index[join_value])
-        final = reduce(set.intersection, intersections)
+            try:
+                intersections.append(index[join_value])
+            except KeyError:
+                pass
+        final = intersections and reduce(set.intersection, intersections) or None
         if final:
             for rightside in final:
                 yield union_records(row, rightside)
@@ -80,13 +83,11 @@ def main():
 
     keys = []
     for key in args.keys:
-        if '=' in keys:
-            left, right = keys.split("=")
+        if '=' in key:
+            left, right = key.split("=")
             keys.append((left, right))
         else:
             keys.append((key, key))
-
-    print "joining on", keys
 
     left = list(tsv.read_tsv(args.left, headers=True))
     right = list(tsv.read_tsv(args.right, headers=True))

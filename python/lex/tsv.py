@@ -62,7 +62,10 @@ def write_tsv(file_or_filename, data, headers=None, write_header=True, delim="\t
     if not isinstance(file_or_filename, file):
         file_or_filename = open(file_or_filename, 'w')
 
-    first_row = iter(data).next()
+    try:
+        first_row = iter(data).next()
+    except StopIteration:
+        first_row = []
     fieldnames = headers
     if headers is True:
         if isinstance(first_row, dict):
