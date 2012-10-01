@@ -23,7 +23,18 @@ import scipy.stats
 import tsv
 from util import remove_pos, normalize, openfile
 
+# this will automatically be filled in by the @distance_metric
+# decorator
+METRICS = dict()
+
+def distance_metric(func, name=None):
+    func.name = name and name or func.func_name
+    METRICS[func.name] = func
+    return func
+
+
 # distance measures
+@distance_metric
 def cosine(vec1, vec2):
     n1 = sqrt(sum(v ** 2 for v in vec1.values()))
     n2 = sqrt(sum(v ** 2 for v in vec2.values()))
@@ -31,11 +42,13 @@ def cosine(vec1, vec2):
     dotprod = sum(vec1[k] * vec2[k] for k in intersection)
     return dotprod / (n1 * n2)
 
+@distance_metric
 def euclid(vec1, vec2):
     keys = set(vec1.keys()).union(set(vec2.keys()))
     totalsum = sum((vec1.get(k, 0) - vec2.get(k, 0)) ** 2 for k in keys)
     return sqrt(totalsum)
 
+@distance_metric
 def normeuclid(vec1, vec2):
     n1 = sqrt(sum(v ** 2 for v in vec1.values()))
     n2 = sqrt(sum(v ** 2 for v in vec2.values()))
@@ -43,17 +56,20 @@ def normeuclid(vec1, vec2):
     totalsum = sum((vec1.get(k, 0) / n1 - vec2.get(k, 0) / n2) ** 2 for k in keys)
     return totalsum
 
+@distance_metric
 def jaccard(vec1, vec2):
     """Jaccard overlap of key presence."""
     inter = set(vec1.keys()).intersection(set(vec2.keys()))
     outer = set(vec1.keys()).union(set(vec2.keys()))
     return float(len(inter)) / len(outer)
 
+@distance_metric
 def dot(vec1, vec2):
     intersection = set(vec1.keys()).intersection(set(vec2.keys()))
     dotprod = sum(vec1[k] * vec2[k] for k in intersection)
     return dotprod
 
+@distance_metric
 def spearman(vec1, vec2, also_give_p=False):
     """
     Considers the vectors to be ranked lists and calculates
@@ -73,18 +89,6 @@ def spearman(vec1, vec2, also_give_p=False):
 
 
 # okay onto drivers and such
-
-def corpus_to_dict(corpus, keep_pos=True):
-    corpus_mem = {}
-    for row in corpus:
-        target = normalize(row['target'])
-        target = keep_pos and target or remove_pos(target)
-        if target not in corpus_mem:
-            corpus_mem[target] = dict()
-        context = normalize(row['context'])
-        assert context not in corpus_mem[target], "Uh oh, found context '%s' twice for target '%s'?" % (context, target)
-        corpus_mem[target][context] = row['value']
-    return corpus_mem
 
 def calculate_distance_metrics(corpus_mem, pairs, metrics):
     for word1, word2 in pairs:
@@ -119,7 +123,7 @@ def main():
     parser.add_argument('--pos', '-p', action='store_true',
                         help='Marks that the word pairs are POS tagged.')
     parser.add_argument('--distance-metric', '-d', action='append',
-                        choices=['cosine', 'euclid', 'dot', 'spearman', 'jaccard', 'normeuclid'],
+                        choices=METRICS.keys(),
                         help='Distance metrics to use.')
     args = parser.parse_args()
 
@@ -136,10 +140,10 @@ def main():
     pairs.update(zip(args.words[::2], args.words[1::2]))
 
     corpus = tsv.read_many_tsv(args.input, ('target', 'context', 'value'), parsers={'value': float})
-    corpus_mem = corpus_to_dict(corpus, keep_pos=args.pos)
+    corpus_mem = tsv_to_dict(corpus, keep_pos=args.pos)
 
     distance_metric_names = args.distance_metric
-    distance_metrics = [globals()[name] for name in distance_metric_names]
+    distance_metrics = [METRICS[name] for name in distance_metric_names]
     out_tsv = calculate_distance_metrics(corpus_mem, pairs, distance_metrics)
 
     tsv.print_tsv(out_tsv, headers=['left', 'right'] + distance_metric_names)

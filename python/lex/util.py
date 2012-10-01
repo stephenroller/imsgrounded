@@ -28,4 +28,16 @@ def remove_pos(word):
 def normalize(word):
     return word
 
+def tsv_to_dict(corpus, keep_pos=True, leftind='target', rightind='context', valcol='value'):
+    corpus_mem = {}
+    for row in corpus:
+        target = normalize(row[leftind])
+        target = keep_pos and target or remove_pos(target)
+        if target not in corpus_mem:
+            corpus_mem[target] = dict()
+        context = normalize(row[rightind])
+        assert context not in corpus_mem[target], "Uh oh, found context '%s' twice for target '%s'?" % (context, target)
+        corpus_mem[target][context] = row[valcol]
+    return corpus_mem
+
 

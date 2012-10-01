@@ -8,7 +8,6 @@ import argparse
 from math import sqrt
 
 import tsv
-from distances import corpus_to_dict
 from util import openfile, remove_pos
 
 def normalize_vectors(corpus_mem):
@@ -52,7 +51,7 @@ def main():
     if args.strip_pos:
         parsers['target'] = remove_pos
     corpuses = [tsv.read_tsv(i, ('target', 'context', 'value'), parsers=parsers) for i in args.input]
-    corpuses_mem = [corpus_to_dict(c) for c in corpuses]
+    corpuses_mem = [tsv_to_dict(c) for c in corpuses]
 
     if args.norm:
         corpuses_mem = [normalize_vectors(cm) for cm in corpuses_mem]

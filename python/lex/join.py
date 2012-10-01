@@ -17,7 +17,6 @@ OrderedDict.__hash__ = lambda x: id(x)
 import tsv
 from util import remove_pos, normalize, openfile
 
-
 def union_records(*records):
     """
     Creates a new record which is all the given records concatenated.
@@ -68,7 +67,12 @@ def join_on(keys, left, right):
         final = intersections and reduce(set.intersection, intersections) or None
         if final:
             for rightside in final:
-                yield union_records(row, rightside)
+                new_record = union_records(row, rightside)
+                # get right of the right keys that we don't need anymore
+                for lk, rk in keys:
+                    if lk != rk:
+                        del new_record[rk]
+                yield new_record
 
 
 
