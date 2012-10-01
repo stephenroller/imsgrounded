@@ -20,7 +20,10 @@ def openfile(filename):
         return open(filename)
 
 def remove_pos(word):
-    return word[:word.rindex('/')]
+    try:
+        return word[:word.rindex('/')]
+    except ValueError:
+        return word
 
 def normalize(word):
     return word

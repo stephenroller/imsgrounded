@@ -14,6 +14,7 @@ that you are only loading what is needed into memory.
 import sys
 import argparse
 import heapq
+import logging
 from math import sqrt
 from itertools import groupby
 
@@ -34,6 +35,13 @@ def euclid(vec1, vec2):
     keys = set(vec1.keys()).union(set(vec2.keys()))
     totalsum = sum((vec1.get(k, 0) - vec2.get(k, 0)) ** 2 for k in keys)
     return sqrt(totalsum)
+
+def normeuclid(vec1, vec2):
+    n1 = sqrt(sum(v ** 2 for v in vec1.values()))
+    n2 = sqrt(sum(v ** 2 for v in vec2.values()))
+    keys = set(vec1.keys()).union(set(vec2.keys()))
+    totalsum = sum((vec1.get(k, 0) / n1 - vec2.get(k, 0) / n2) ** 2 for k in keys)
+    return totalsum
 
 def jaccard(vec1, vec2):
     """Jaccard overlap of key presence."""
@@ -74,14 +82,20 @@ def corpus_to_dict(corpus, keep_pos=True):
         if target not in corpus_mem:
             corpus_mem[target] = dict()
         context = normalize(row['context'])
-        assert context not in corpus_mem[target]
+        assert context not in corpus_mem[target], "Uh oh, found context '%s' twice for target '%s'?" % (context, target)
         corpus_mem[target][context] = row['value']
     return corpus_mem
 
 def calculate_distance_metrics(corpus_mem, pairs, metrics):
     for word1, word2 in pairs:
-        vec1 = corpus_mem[word1]
-        vec2 = corpus_mem[word2]
+        try:
+            vec1 = corpus_mem[word1]
+        except KeyError:
+            logging.warning("Couldn't find vector for '%s'. Skipping..." % word1)
+        try:
+            vec2 = corpus_mem[word2]
+        except KeyError:
+            logging.warning("Couldn't find vector for '%s'. Skipping..." % word2)
 
         results = [dm(vec1, vec2) for dm in metrics]
 
@@ -105,7 +119,7 @@ def main():
     parser.add_argument('--pos', '-p', action='store_true',
                         help='Marks that the word pairs are POS tagged.')
     parser.add_argument('--distance-metric', '-d', action='append',
-                        choices=['cosine', 'euclid', 'dot', 'spearman', 'jaccard'],
+                        choices=['cosine', 'euclid', 'dot', 'spearman', 'jaccard', 'normeuclid'],
                         help='Distance metrics to use.')
     args = parser.parse_args()
 

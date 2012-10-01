@@ -28,7 +28,14 @@ def union_records(*records):
         new_record = OrderedDict()
         for r in records:
             for k, v in r.iteritems():
-                new_record[k] = v
+                if k in new_record and new_record[k] == v:
+                    continue
+                out_k = k
+                z = 0
+                while out_k in new_record:
+                    z += 1
+                    out_k = "%s%d" % (k, z)
+                new_record[out_k] = v
         return new_record
 
 def cartesian(left, right):

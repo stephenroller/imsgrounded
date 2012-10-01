@@ -48,9 +48,9 @@ def read_many_tsv(files_or_filenames, *args, **kwargs):
 
 def safe_encode(row):
     if isinstance(row, (str, unicode)):
-        return unicode(row.decode("utf-8")).encode("utf-8")
+        return unicode(row.decode("utf-8")) #.encode("utf-8")
     elif isinstance(row, (int, float)):
-        return unicode(row)
+        return unicode(row).decode("utf-8")
     elif isinstance(row, (tuple, list)):
         return [safe_encode(v) for v in row]
     elif isinstance(row, dict):
@@ -58,7 +58,7 @@ def safe_encode(row):
     else:
         raise ValueError, "I don't know how to handle data of type '%s'." % typeof(row)
 
-def write_tsv(file_or_filename, data, headers=None, write_header=True, delim="\t"):
+def write_tsv(file_or_filename, data, headers=None, write_header=True, delim=u"\t"):
     if not isinstance(file_or_filename, file):
         file_or_filename = open(file_or_filename, 'w')
 
@@ -84,11 +84,11 @@ def write_tsv(file_or_filename, data, headers=None, write_header=True, delim="\t
         row = safe_encode(row)
         if isinstance(row, dict):
             write_order = [row[field] for field in fieldnames]
-            outstr = delim.join(write_order) + "\n"
+            outstr = delim.join(write_order) + u"\n"
         else:
-            outstr = delim.join(row) + "\n"
+            outstr = delim.join(row) + u"\n"
         try:
-            file_or_filename.write(outstr)
+            file_or_filename.write(outstr.encode("utf-8"))
         except IOError:
             break
 
