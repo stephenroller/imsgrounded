@@ -29,8 +29,8 @@ def read_vector_file(file_or_filename):
     return sp
 
 def df_remove_pos(dataframe):
-    newindex = map(remove_pos, dataframe.index)
-    return dataframe.reindex(columns=newindex)
+    newindex = map(remove_pos, dataframe.columns)
+    return dataframe.rename(columns=dict(zip(dataframe.columns, newindex)))
 
 def remove_pos(word):
     try:
