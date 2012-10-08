@@ -2,6 +2,9 @@
 
 import sys
 import logging
+import pandas as pd
+
+from math import sqrt
 
 def readfile(filename):
     return [z.strip() for z in openfile(filename).readlines()]
@@ -18,6 +21,16 @@ def openfile(filename):
     else:
         #logger.info("Loading %s as plain file." % filename)
         return open(filename)
+
+def read_vector_file(file_or_filename):
+    rawdf = pd.read_csv(file_or_filename, sep="\t", names=("target", "context", "value"))
+    piv = rawdf.pivot("context", "target", "value")
+    sp = piv.fillna(0).to_sparse(0)
+    return sp
+
+def df_remove_pos(dataframe):
+    newindex = map(remove_pos, dataframe.index)
+    return dataframe.reindex(columns=newindex)
 
 def remove_pos(word):
     try:
@@ -40,4 +53,7 @@ def tsv_to_dict(corpus, keep_pos=True, leftind='target', rightind='context', val
         corpus_mem[target][context] = row[valcol]
     return corpus_mem
 
+
+def norm2(vec):
+    return vec / sqrt(vec.dot(vec))
 
