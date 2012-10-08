@@ -20,7 +20,6 @@ from itertools import groupby
 import scipy.stats
 import pandas as pd
 
-import tsv
 from util import remove_pos, normalize, openfile, read_vector_file, df_remove_pos, norm2
 
 # this will automatically be filled in by the @distance_metric
@@ -78,6 +77,9 @@ def spearman(vec1, vec2, also_give_p=False):
 
 # okay onto drivers and such
 def calculate_distance_metrics(vecspace, pairs, metrics):
+    metric_names = [dm.name for dm in metrics]
+    columns = ["left", "right"] + metric_names
+    output = []
     for word1, word2 in pairs:
         try:
             vec1 = vecspace[word1].to_dense()
@@ -90,15 +92,15 @@ def calculate_distance_metrics(vecspace, pairs, metrics):
             logging.warning("Couldn't find vector for '%s'. Skipping..." % word2)
             continue
 
-        results = {dm.name : dm(vec1, vec2) for dm in metrics}
-        results['left'] = word1
-        results['right'] = word2
-
-        yield results
+        result = {dm.name : dm(vec1, vec2) for dm in metrics}
+        result['left'] = word1
+        result['right'] = word2
+        output.append(result)
+    return pd.DataFrame(output, columns=columns)
 
 
 def read_pairs(file):
-    return list(tsv.read_tsv(file, False))
+    return list(pd.read_csv(file, sep="\t", names=("left", "right")).to_records(index=False))
 
 def main():
     parser = argparse.ArgumentParser(
@@ -137,9 +139,8 @@ def main():
 
     distance_metric_names = args.distance_metric
     distance_metrics = [METRICS[name] for name in distance_metric_names]
-    out_tsv = calculate_distance_metrics(vecspace, pairs, distance_metrics)
-
-    tsv.print_tsv(out_tsv, headers=['left', 'right'] + distance_metric_names)
+    output_measures = calculate_distance_metrics(vecspace, pairs, distance_metrics)
+    output_measures.to_csv(sys.stdout, sep="\t", index=False)
 
 
 
