@@ -29,7 +29,7 @@ def main():
                             help='Whether we should include self-comp ratings.')
     args = parser.parse_args()
 
-    compratings = pd.read_csv(args.ratings, sep="\t")
+    compratings = pd.read_table(args.ratings)
     if not args.self:
         compratings = compratings[compratings["compound"] != compratings["const"]]
 

@@ -100,7 +100,7 @@ def calculate_distance_metrics(vecspace, pairs, metrics):
 
 
 def read_pairs(file):
-    return list(pd.read_csv(file, sep="\t", names=("left", "right")).to_records(index=False))
+    return list(pd.read_table(file, names=("left", "right")).to_records(index=False))
 
 def main():
     parser = argparse.ArgumentParser(

@@ -23,7 +23,7 @@ def openfile(filename):
         return open(filename)
 
 def read_vector_file(file_or_filename):
-    rawdf = pd.read_csv(file_or_filename, sep="\t", names=("target", "context", "value"))
+    rawdf = pd.read_table(file_or_filename, names=("target", "context", "value"))
     piv = rawdf.pivot("context", "target", "value")
     sp = piv.fillna(0).to_sparse(0)
     return sp
@@ -40,19 +40,6 @@ def remove_pos(word):
 
 def normalize(word):
     return word
-
-def tsv_to_dict(corpus, keep_pos=True, leftind='target', rightind='context', valcol='value'):
-    corpus_mem = {}
-    for row in corpus:
-        target = normalize(row[leftind])
-        target = keep_pos and target or remove_pos(target)
-        if target not in corpus_mem:
-            corpus_mem[target] = dict()
-        context = normalize(row[rightind])
-        assert context not in corpus_mem[target], "Uh oh, found context '%s' twice for target '%s'?" % (context, target)
-        corpus_mem[target][context] = row[valcol]
-    return corpus_mem
-
 
 def norm2(vec):
     return vec / sqrt(vec.dot(vec))
