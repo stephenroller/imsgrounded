@@ -3,18 +3,19 @@
 import sys
 import argparse
 
-import tsv
 from util import remove_pos, normalize, openfile
 
-def filter_corpus(corpus, whitewords, has_pos=False, is_sorted=False):
+def filter_vecspace(vecspace, whitewords, has_pos=False, is_sorted=False):
     last_element = is_sorted and max(whitewords) or None
-    for row in corpus:
+    for line in vecspace:
+        line = line.rstrip("\n")
+        row = line.split("\t")
         # remove pos if necessary
         target = has_pos and row[0] or remove_pos(row[0])
         # normalize
         target_norm = normalize(target)
         if target_norm in whitewords:
-            yield row
+            yield line
         if last_element and not target.startswith(last_element) and target > last_element:
             # the incoming vector space is sorted, so we
             # know we've already seen the last word we're looking for.
@@ -47,11 +48,9 @@ def main():
 
     whitewords.update([normalize(w) for w in args.word])
 
-    corpus = tsv.read_many_tsv(args.input, False)
-    filtered = filter_corpus(corpus, whitewords, args.pos, is_sorted=args.sorted)
-
-    tsv.print_tsv(filtered, write_header=False)
-
+    for input in args.input:
+        for line in filter_vecspace(input, whitewords, args.pos, args.sorted):
+            print line
 
 if __name__ == '__main__':
     main()
