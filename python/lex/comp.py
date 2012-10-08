@@ -9,6 +9,7 @@ import sys
 import argparse
 
 from os.path import basename
+from numbers import Number
 
 import pandas as pd
 
@@ -17,6 +18,25 @@ from distances import cosine, calculate_distance_metrics as cdm
 from matrix import norm2_matrix
 
 DISTANCE_METRIC = cosine
+
+def correlations(dataframe):
+    from scipy.stats import spearmanr
+    output = []
+    columns = list(dataframe.columns)
+    for i, colname1 in enumerate(columns):
+        col1 = dataframe[colname1]
+        if not isinstance(col1[0], Number):
+            continue
+        for colname2 in columns[i+1:]:
+            col2 = dataframe[colname2]
+            if not isinstance(col2[0], Number):
+                continue
+            # okay, we want correlation here
+            rho, p = spearmanr(col1, col2)
+            output.append(dict(col1=colname1, col2=colname2, rho=rho, p=p))
+    return pd.DataFrame(output, columns=("col1", "col2", "rho", "p"))
+
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -35,8 +55,10 @@ def main():
 
     word_pairs = set(zip(compratings['compound'], compratings['const']))
 
-    named_vector_spaces = [(basename(f.name), norm2_matrix(read_vector_file(f))) 
-                           for f in args.input]
+    named_vector_spaces = [
+        (basename(f.name), norm2_matrix(df_remove_pos(read_vector_file(f))))
+        for f in args.input
+    ]
 
     if len(named_vector_spaces) > 1:
         # need to do concatenation
@@ -57,6 +79,11 @@ def main():
     dm_and_comp = pd.merge(compratings, joined_measures)
 
     dm_and_comp.to_csv(sys.stdout, index=False, sep="\t")
+
+    # let's compute our correlations
+    print "\n" + "-" * 80 + "\n"
+
+    corrs = correlations(dm_and_comp).to_csv(sys.stdout, index=False, sep="\t")
 
 
 
