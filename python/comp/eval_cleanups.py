@@ -5,6 +5,7 @@ import sys
 import argparse
 
 import pandas as pd
+from pandas.core.reshape import melt
 from scipy.stats import spearmanr
 
 from standard_cleanup import aggregate_ratings
@@ -90,38 +91,19 @@ assoc = assoc.sort(['compound', 'const'])
 
 
 results = []
-
 concatted = pd.concat([heads, mods])
-for min_rho in [None] + decrange(0.35, 0.6, 0.05):
+
+# stupid hack to minimize repeated code
+min_rhos = [None] + decrange(0.35, 0.6, 0.05)
+zscores = [None] * len(min_rhos) + decrange(1.0, 3.0, 0.5)
+variables = map(None, min_rhos, zscores)
+
+for min_rho, zscore in variables:
     data = concatted
     try:
         if min_rho:
             data = remove_deviant_subjects(data, min_rho)
-        agg = aggregate_ratings(data)
-        agg = agg.sort(['compound', 'const'])
-    except:
-        # print "Whoops, everything removed. Skipping.\n"
-        continue
 
-    row = {'dev_subj': min_rho}
-    for method in COMBINE_METHODS:
-        together = combine_measures(agg, method)
-        together = together.sort('compound')
-        rho, p = rho_with_wholes(together, aggregate_ratings(whole))
-        # print "with wholes rho %s: %f" % (method, rho)
-        row['with_wholes_%s' % method] = rho
-
-    for measure in ['cosine', 'jaccard']:
-        rho, p = rho_with_assoc(agg, assoc, measure)
-        # print "with assoc %s rho: %f" % (measure, rho)
-        row['with_assoc_%s' % measure] = rho
-
-    results.append(row)
-
-
-for zscore in decrange(1.0, 3.0, 0.5):
-    data = concatted
-    try:
         if zscore:
             data = remove_deviant_ratings(data, zscore)
 
@@ -131,23 +113,23 @@ for zscore in decrange(1.0, 3.0, 0.5):
         # print "Whoops, everything removed. Skipping.\n"
         continue
 
-    row = {'zscore': zscore}
+    row = {'dev_subj': min_rho, 'zscore': zscore}
     for method in COMBINE_METHODS:
         together = combine_measures(agg, method)
         together = together.sort('compound')
         rho, p = rho_with_wholes(together, aggregate_ratings(whole))
         # print "with wholes rho %s: %f" % (method, rho)
-        row['with_wholes_%s' % method] = rho
-
+        row['Whole judgements (%s)' % method] = rho
 
     for measure in ['cosine', 'jaccard']:
         rho, p = rho_with_assoc(agg, assoc, measure)
         # print "with assoc %s rho: %f" % (measure, rho)
-        row['with_assoc_%s' % measure] = rho
+        row['Association sim (%s)' % measure] = rho
 
     results.append(row)
 
-pd.DataFrame(results).to_csv(sys.stdout, index=False)
+results = pd.DataFrame(results)
+melt(results, id_vars=("dev_subj", "zscore")).to_csv(sys.stdout, index=False)
 
 
 
