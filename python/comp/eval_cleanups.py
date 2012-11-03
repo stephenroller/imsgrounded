@@ -16,7 +16,7 @@ MOD_FILE = '/Users/stephen/Working/imsgrounded/data/comp/comp_ratings_const.csv'
 WHOLE_FILE = '/Users/stephen/Working/imsgrounded/data/comp/amt_reshaped.csv'
 ASSOC_FILE = '/Users/stephen/Working/imsgrounded/results/big_assoc_similarties.csv'
 
-COMBINE_METHODS = ['sum', 'prod', 'mean']
+COMBINE_METHODS = ['sum', 'prod']
 
 
 # Things we need to output:
@@ -44,8 +44,6 @@ def combine_measures(agg_heads_and_mods, method='sum'):
         together = grouped.sum()
     elif method == 'prod':
         together = grouped.prod()
-    elif method == 'mean':
-        together = grouped.mean()
     else:
         raise ValueError("Invalid method for combining measures.")
     together['compound'] = together.index
@@ -95,36 +93,59 @@ results = []
 
 concatted = pd.concat([heads, mods])
 for min_rho in [None] + decrange(0.35, 0.6, 0.05):
-    for zscore in [None] + decrange(1.0, 3.0, 0.5):
-        data = concatted
-        try:
-            if min_rho:
-                data = remove_deviant_subjects(data, min_rho)
+    data = concatted
+    try:
+        if min_rho:
+            data = remove_deviant_subjects(data, min_rho)
+        agg = aggregate_ratings(data)
+        agg = agg.sort(['compound', 'const'])
+    except:
+        # print "Whoops, everything removed. Skipping.\n"
+        continue
 
-            if zscore:
-                data = remove_deviant_ratings(data, zscore)
+    row = {'dev_subj': min_rho}
+    for method in COMBINE_METHODS:
+        together = combine_measures(agg, method)
+        together = together.sort('compound')
+        rho, p = rho_with_wholes(together, aggregate_ratings(whole))
+        # print "with wholes rho %s: %f" % (method, rho)
+        row['with_wholes_%s' % method] = rho
 
-            agg = aggregate_ratings(data)
-            agg = agg.sort(['compound', 'const'])
-        except:
-            # print "Whoops, everything removed. Skipping.\n"
-            continue
+    for measure in ['cosine', 'jaccard']:
+        rho, p = rho_with_assoc(agg, assoc, measure)
+        # print "with assoc %s rho: %f" % (measure, rho)
+        row['with_assoc_%s' % measure] = rho
 
-        row = {'zscore': zscore, 'dev_subj': min_rho}
-        for method in COMBINE_METHODS:
-            together = combine_measures(agg, method)
-            together = together.sort('compound')
-            rho, p = rho_with_wholes(together, aggregate_ratings(whole))
-            # print "with wholes rho %s: %f" % (method, rho)
-            row['with_wholes_%s' % method] = rho
+    results.append(row)
 
 
-        for measure in ['cosine', 'jaccard']:
-            rho, p = rho_with_assoc(agg, assoc, measure)
-            # print "with assoc %s rho: %f" % (measure, rho)
-            row['with_assoc_%s' % measure] = rho
+for zscore in decrange(1.0, 3.0, 0.5):
+    data = concatted
+    try:
+        if zscore:
+            data = remove_deviant_ratings(data, zscore)
 
-        results.append(row)
+        agg = aggregate_ratings(data)
+        agg = agg.sort(['compound', 'const'])
+    except:
+        # print "Whoops, everything removed. Skipping.\n"
+        continue
+
+    row = {'zscore': zscore}
+    for method in COMBINE_METHODS:
+        together = combine_measures(agg, method)
+        together = together.sort('compound')
+        rho, p = rho_with_wholes(together, aggregate_ratings(whole))
+        # print "with wholes rho %s: %f" % (method, rho)
+        row['with_wholes_%s' % method] = rho
+
+
+    for measure in ['cosine', 'jaccard']:
+        rho, p = rho_with_assoc(agg, assoc, measure)
+        # print "with assoc %s rho: %f" % (measure, rho)
+        row['with_assoc_%s' % measure] = rho
+
+    results.append(row)
 
 pd.DataFrame(results).to_csv(sys.stdout, index=False)
 
