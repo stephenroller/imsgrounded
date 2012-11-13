@@ -4,16 +4,22 @@ import sys
 import pandas as pd
 from os.path import basename
 from scipy.stats import spearmanr
+from math import sqrt
 
 from matplotlib import pyplot
 from matplotlib.backends.backend_pdf import PdfPages
 
+from rebin import rebin
+
 filenames = sys.argv[1:]
 dataframes = [pd.read_csv(x) for x in sys.argv[1:]]
 if len(filenames) > 1:
-    filenames += ["CONCAT"]
-    dataframes += [pd.concat(dataframes)]
+    #filenames += ["CONCAT"]
+    #dataframes += [pd.concat(dataframes)]
+    filenames = ["CONCAT"]
+    dataframes = [pd.concat(dataframes)]
 
+dataframes = [rebin(df, dict(zip(range(1, 8), [1, 1, 4, 4, 4, 7, 7]))) for df in dataframes]
 
 # go ahead and open the big pdf
 pp = PdfPages("subjects.pdf")
@@ -53,23 +59,31 @@ for fileno, (filename, data) in enumerate(zip(filenames, dataframes)):
             record['n%d' % i] = count
 
         other_rhos = []
+        other_agreements = []
         for k in other_subjects:
+            k_out = ("%2s" % k).replace(" ", "0")
             rho_o, p = spearmanr(ratings, data[k])
             other_rhos.append(rho_o)
-        record['avg rho w/ others'] = pd.Series(other_rhos).mean()
+            agreement = float((ratings == data[k]).sum()) / (ratings.notnull() & data[k].notnull()).sum()
+            record['agreement-with-%2s' % k_out] = agreement
+            record['rho-with-%2s' % k_out] = rho_o
+            other_agreements.append(agreement)
+        record['mean rho w/ others'] = pd.Series(other_rhos).mean()
         record['std rho w/ others'] = pd.Series(other_rhos).std()
+        record['mean agreement'] = pd.Series(other_agreements).mean()
+        record['std agreement'] = pd.Series(other_agreements).std()
 
         output.append(record)
 
-    headers = [
-        'filename', 'subject', 'n', 'min', 'q1', 'mean', 'median', 'q3', 'max',
-        'stddev', 'rho-mean (w/)', 'rho-mean (w/o)'
-    ]
-    headers += ['avg rho w/ others', 'std rho w/ others']
-    headers += ['n%d' % i for i in xrange(1, 8)]
+    # headers = [
+    #     'filename', 'subject', 'n', 'min', 'q1', 'mean', 'median', 'q3', 'max',
+    #     'stddev', 'rho-mean (w/)', 'rho-mean (w/o)'
+    # ]
+    # headers += ['avg rho w/ others', 'std rho w/ others']
+    # headers += ['n%d' % i for i in xrange(1, 8)]
 
     out_data = pd.DataFrame(output)
-    out_data.to_csv(sys.stdout, cols=headers, index=False, header=(fileno == 0))
+    out_data.to_csv(sys.stdout, index=False, header=(fileno == 0))
 
     # first global stats graphs
     pyplot.figure(figsize=(25, 15))

@@ -3,6 +3,7 @@
 import sys
 import pandas as pd
 from itertools import islice
+from random import choice, randint
 
 # ratings data is a DataFrame with the following columns:
 # compound, const, user1, user2, user3, ...
@@ -11,33 +12,33 @@ from itertools import islice
 
 # these yield tuples (cost1, const2, const1score, const2score)
 
-def gen_matches_randInf(ratings_data):
+def gen_matches_randInf(ratings_data, trials=5000000):
     L = len(ratings_data)
-    from random import choice, randint
     judgement_columns = ratings_data.columns[2:]
-    while True:
+    for t in xrange(trials):
         j = choice(judgement_columns)
-        i = randint(0, L - 1)
-        k = randint(0, L - 1)
         user_ratings = ratings_data[j]
+        i = choice(user_ratings.index)
+        k = choice(user_ratings.index)
         nn = user_ratings.notnull()
         if not nn[i] or not nn[k]:
             continue
         a = user_ratings[i]
         b = user_ratings[k]
-        if a == b:
-            yield (i, k, 0.5, 0.5)
-        elif a < b:
-            yield (i, k, 0.0, 1.0)
-        elif a > b:
-            yield (i, k, 1.0, 0.0)
-        else:
-            assert False, "wtf?"
+        yield (i, k, a - b, b - a)
+#         if a == b:
+#             yield (i, k, 0.5, 0.5)
+#         elif a < b:
+#             yield (i, k, 0.0, 1.0)
+#         elif a > b:
+#             yield (i, k, 1.0, 0.0)
 
 
-def compute_elo(matches, kfactor=10.0, start=1500.0, spread=400.0):
+def compute_elo(matches, kfactor, start, spread):
     elos = {}
+    i = 0
     for a, b, s_a, s_b in matches:
+        i += 1
         if a not in elos:
             elos[a] = start
         if b not in elos:
@@ -54,23 +55,29 @@ def compute_elo(matches, kfactor=10.0, start=1500.0, spread=400.0):
         # update elos
         elos[a] = elos[a] + kfactor * (s_a - e_a)
         elos[b] = elos[b] + kfactor * (s_b - e_b)
+        if i % 10000 == 0:
+            sys.stderr.write("elo loop / t: %d, a: %f, b: %f\n" % (i, elos[a], elos[b]))
 
     return elos
 
-HEAD_FILE = '/Users/stephen/Working/imsgrounded/data/comp/comp_ratings_head.csv'
-MOD_FILE = '/Users/stephen/Working/imsgrounded/data/comp/comp_ratings_const.csv'
+def elos_to_df(elo_dict, orig_df):
+    results = []
+    for item, elo in elo_dict.iteritems():
+        results.append({
+            'compound': orig_df['compound'][item],
+            'const': orig_df['const'][item],
+            'mean': elo
+        })
+    return pd.DataFrame(results)
 
-df = pd.read_csv(HEAD_FILE)
-#elos = compute_elo(gen_matches_seq(df))
-elos = compute_elo(islice(gen_matches_randInf(df), 5000000))
 
-results = []
-for item, elo in elos.iteritems():
-    results.append({
-        'compound': df['compound'][item],
-        'const': df['const'][item],
-        'elo': elo
-    })
+def elo(df, kfactor=0.03, start=1500.0, spread=400.0):
+    return elos_to_df(compute_elo(gen_matches_randInf(df), kfactor, start, spread), df)
 
-pd.DataFrame(results).to_csv(sys.stdout, index=False)
+if __name__ == '__main__':
+    HEAD_FILE = '/Users/stephen/Working/imsgrounded/data/comp/comp_ratings_head.csv'
+    MOD_FILE = '/Users/stephen/Working/imsgrounded/data/comp/comp_ratings_const.csv'
+
+    df = pd.concat([pd.read_csv(HEAD_FILE), pd.read_csv(MOD_FILE)], ignore_index=True)
+    elo(df).to_csv(sys.stdout, index=False)
 

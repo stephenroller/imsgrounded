@@ -19,8 +19,9 @@ def remove_deviant_subjects(data, min_corr=DEFAULT_MIN_CORR):
         other_subjects = list(set(judgement_columns) - set([j]))
         exclusive_means = data[other_subjects].transpose().mean()
         rho, p = spearmanr(ratings, exclusive_means)
-        #sys.stderr.write("%s with others: %f\n" % (j, rho))
+        # sys.stderr.write("%s with others: %f\n" % (j, rho))
         if rho < min_corr:
+            # sys.stderr.write("Removing %s\n" % j)
             to_remove.append(j)
 
     out_data = data.copy()
