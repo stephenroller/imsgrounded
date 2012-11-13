@@ -19,22 +19,39 @@ from matrix import norm2_matrix
 
 DISTANCE_METRIC = cosine
 
+def numeric_columns(dataframe):
+    return [dataframe[c] for c in dataframe.columns if isinstance(dataframe[c][0], Number)]
+
+def pairs(lst):
+    for i, x in enumerate(lst):
+        for y in lst[i+1:]:
+            yield x, y
+
 def correlations(dataframe):
     from scipy.stats import spearmanr
     output = []
-    columns = list(dataframe.columns)
-    for i, colname1 in enumerate(columns):
-        col1 = dataframe[colname1]
-        if not isinstance(col1[0], Number):
-            continue
-        for colname2 in columns[i+1:]:
-            col2 = dataframe[colname2]
-            if not isinstance(col2[0], Number):
-                continue
-            # okay, we want correlation here
-            rho, p = spearmanr(col1, col2)
-            output.append(dict(col1=colname1, col2=colname2, rho=rho, p=p))
+    columns = list(numeric_columns(dataframe))
+    for col1, col2 in pairs(columns):
+        rho, p = spearmanr(col1, col2)
+        output.append(dict(col1=col1.name, col2=col2.name, rho=rho, p=p))
     return pd.DataFrame(output, columns=("col1", "col2", "rho", "p"))
+
+def scatters(dataframe, filename):
+    from matplotlib import pyplot as plt
+    from matplotlib.backends.backend_pdf import PdfPages
+    pp = PdfPages(filename)
+    plt.locator_params(tight=True)
+    columns = list(numeric_columns(dataframe))
+    for col1, col2 in pairs(columns):
+        plt.plot(col1, col2, 'o')
+        xspace = 0.05 * (col1.max() - col1.min())
+        yspace = 0.05 * (col2.max() - col2.min())
+        plt.axis([col1.min() - xspace, col1.max() + xspace, col2.min() - yspace, col2.max() + yspace])
+        plt.xlabel(col1.name)
+        plt.ylabel(col2.name)
+        pp.savefig()
+        plt.clf()
+    pp.close()
 
 
 
@@ -42,11 +59,18 @@ def main():
     parser = argparse.ArgumentParser(
                 description='Computes correlations with compositionality ratings.')
     parser.add_argument('--input', '-i', action="append", type=openfile,
-                            metavar="FILE", help='Input vector space.')
+                        metavar="FILE", help='Input vector space.')
     parser.add_argument('--ratings', '-r', metavar='COMPFILE', type=openfile,
-                            help='The compositionality ratings file.')
+                        help='The compositionality ratings file.')
     parser.add_argument('--self', '-s', action="store_true",
-                            help='Whether we should include self-comp ratings.')
+                        help='Whether we should include self-comp ratings.')
+    parser.add_argument('--no-tsv', '-T', action="store_true",
+                        help="*Don't* output the TSV containing comp and model ratings.")
+    parser.add_argument('--corrs', '-c', action="store_true",
+                        help='Specifies whether correlations should be computed and outputed.')
+    parser.add_argument('--pdf', '-p', metavar="FILE", default=None,
+                        help='Output plots as a PDF to the given filename.')
+
     args = parser.parse_args()
 
     compratings = pd.read_table(args.ratings)
@@ -76,14 +100,25 @@ def main():
     joined_measures = reduce(pd.merge, distances).rename(
                         columns={"left": "compound", "right": "const"})
 
+    # finally join the similarity measures with the human ratings
     dm_and_comp = pd.merge(compratings, joined_measures)
 
-    dm_and_comp.to_csv(sys.stdout, index=False, sep="\t")
+    # output dm_and_comp unless the user specified not to
+    if not args.no_tsv:
+        dm_and_comp.to_csv(sys.stdout, index=False, sep="\t")
 
-    # let's compute our correlations
-    print "\n" + "-" * 80 + "\n"
+    # nicer output
+    if not args.no_tsv and args.corrs:
+        # let's compute our correlations
+        print "\n" + "-" * 80 + "\n"
 
-    corrs = correlations(dm_and_comp).to_csv(sys.stdout, index=False, sep="\t")
+    # compute and output correlations if the user asked
+    if args.corrs:
+        corrs = correlations(dm_and_comp).to_csv(sys.stdout, index=False, sep="\t")
+
+    # plot the measures if the user asked.
+    if args.pdf:
+        scatters(dm_and_comp, args.pdf)
 
 
 
