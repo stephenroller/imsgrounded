@@ -50,12 +50,13 @@ def aggregate_ratings(data):
     judgement_columns = data.columns[2:]
     for i, row in data.iterrows():
         ratings = row[judgement_columns].transpose()
-        if sum(ratings.notnull()) <= 1:
+        nonnull = sum(ratings.notnull())
+        if nonnull == 0:
             # skip data points with only 0 or 1 ratings.
             continue
         mean = ratings.mean()
-        stddev = ratings.std()
-        median = ratings.median()
+        stddev = nonnull > 1 and ratings.std() or 0
+        median = nonnull > 1 and ratings.median() or ratings[0]
         output_data.append({
             'compound': row['compound'],
             'const': row['const'],
