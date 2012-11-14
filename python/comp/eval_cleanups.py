@@ -12,6 +12,7 @@ from standard_cleanup import aggregate_ratings
 from standard_cleanup import remove_deviant_ratings, remove_deviant_subjects
 from elo import elo
 from rebin import rebin
+from whiten import whiten
 
 
 HEAD_FILE = '/Users/stephen/Working/imsgrounded/data/comp/comp_ratings_head.csv'
@@ -19,7 +20,10 @@ MOD_FILE = '/Users/stephen/Working/imsgrounded/data/comp/comp_ratings_const.csv'
 WHOLE_FILE = '/Users/stephen/Working/imsgrounded/data/comp/amt_reshaped.csv'
 ASSOC_FILE = '/Users/stephen/Working/imsgrounded/results/big_assoc_similarties.csv'
 
-COMBINE_METHODS = ['sum', 'prod']
+# COMBINE_METHODS = ['sum', 'prod', 'hmean']
+COMBINE_METHODS = ['prod']
+# ASSOC_METHODS = ['jaccard', 'cosine']
+ASSOC_METHODS = ['jaccard']
 
 
 # Things we need to output:
@@ -36,23 +40,32 @@ class Cleaner(object):
     def paramaters(self):
         return {}
 
+    def __str__(self):
+        return "Base class"
+
+
 class BaselineCleaner(Cleaner):
     def scores(self, df):
-        return aggregate_ratings(df)
+        return df
 
     def parameters(self):
         return {}
 
+    def __str__(self):
+        return "Do nothing"
 
 class RemoveDeviantSubjectCleaner(Cleaner):
     def __init__(self, min_rho):
         self.min_rho = min_rho
 
     def scores(self, df):
-        return aggregate_ratings(remove_deviant_subjects(df, self.min_rho))
+        return remove_deviant_subjects(df, self.min_rho)
 
     def parameters(self):
         return {'min_rho': self.min_rho}
+
+    def __str__(self):
+        return "Remove Subj (rho < %f)" % self.min_rho
 
 class RemoveDeviantRatings(Cleaner):
     def __init__(self, zscore):
@@ -62,19 +75,22 @@ class RemoveDeviantRatings(Cleaner):
         return {'zscore': self.zscore}
 
     def scores(self, df):
-        return aggregate_ratings(remove_deviant_ratings(df, self.zscore))
+        return remove_deviant_ratings(df, self.zscore)
 
-class EloRatings(Cleaner):
-    def __init__(self, k=32, start=1500, spread=400):
-        self.k = k
-        self.start = start
-        self.spread = spread
+    def __str__(self):
+        return "Remove Judgements (z < %f)" % self.zscore
 
-    def parameters(self):
-        return dict(elo_k=self.k, elo_start=self.start, elo_spread=self.spread)
-
-    def scores(self, df):
-        return elo(df, self.k, self.start, self.spread)
+# class EloRatings(Cleaner):
+#     def __init__(self, k=32, start=1500, spread=400):
+#         self.k = k
+#         self.start = start
+#         self.spread = spread
+#
+#     def parameters(self):
+#         return dict(elo_k=self.k, elo_start=self.start, elo_spread=self.spread)
+#
+#     def scores(self, df):
+#         return elo(df, self.k, self.start, self.spread)
 
 class RebinCleaner(Cleaner):
     def __init__(self, new_bins):
@@ -93,7 +109,10 @@ class RebinCleaner(Cleaner):
         return dict(bins=self.bin_names)
 
     def scores(self, df):
-        return aggregate_ratings(rebin(df, self.bin_mapping))
+        return rebin(df, self.bin_mapping)
+
+    def __str__(self):
+        return "Rebin (%s)" % self.bin_names
 
 
 class SvdCleaner(Cleaner):
@@ -104,10 +123,23 @@ class SvdCleaner(Cleaner):
         return dict(svd_k=self.k)
 
     def scores(self, df):
-        df = whiten(df, k)
-        return aggregate_ratings(df)
+        return whiten(df, self.k)
 
+    def __str__(self):
+        return "SVD (Rank %d)" % self.k
 
+class FillCleaner(Cleaner):
+    def __init__(self, fill_value):
+        self.fill_value = fill_value
+
+    def scores(self, df):
+        return df.fillna(self.fill_value)
+
+    def parameters(self):
+        return dict(fill_value=self.fill_value)
+
+    def __str__(self):
+        return "Fill w %d" % self.fill_value
 
 def decrange(start, stop, inc):
     out = []
@@ -117,7 +149,7 @@ def decrange(start, stop, inc):
         x += inc
     return out
 
-def combine_measures(agg_heads_and_mods, method='sum'):
+def combine_measures(agg_heads_and_mods, method='prod'):
     # returns a new DataFrame that's the exact same format as the whole file
     # method should be either 'sum' or 'prod'.
     grouped = agg_heads_and_mods.groupby('compound')
@@ -125,6 +157,8 @@ def combine_measures(agg_heads_and_mods, method='sum'):
         together = grouped.sum()
     elif method == 'prod':
         together = grouped.prod()
+    elif method == 'hmean':
+        together = 2 * grouped.prod() / grouped.sum()
     else:
         raise ValueError("Invalid method for combining measures.")
     together['compound'] = together.index
@@ -136,8 +170,9 @@ def rho_with_wholes(indiv, whole):
     rho, p = spearmanr(indiv['mean'], whole['mean'])
     # hardcode statistical significance
     if not p < .05:
-        import pdb
-        pdb.set_trace()
+        #import pdb
+        #pdb.set_trace()
+        sys.stderr.write("Uh oh, got a p < .05 (%f)\n" % p)
     return rho, p
 
 def rho_with_assoc(indiv, assoc, measure):
@@ -162,7 +197,7 @@ assoc = assoc[assoc.compound != assoc.const]
 # we can only work with the intersection of all 3 files in terms of
 # judgements
 good_compounds = reduce(
-    set.intersection, 
+    set.intersection,
     [set(x.compound) for x in [heads, mods, whole, assoc]]
 )
 heads, mods, whole, assoc = [
@@ -179,18 +214,21 @@ concatted = pd.concat([heads, mods], ignore_index=True)
 
 
 setups = [BaselineCleaner()]
-setups += [RemoveDeviantSubjectCleaner(r) for r in decrange(0.35, 0.6, 0.05)]
+#setups += [RemoveDeviantSubjectCleaner(r) for r in decrange(0.35, 0.6, 0.05)]
 #setups += [RemoveDeviantRatings(z) for z in decrange(1.0, 3.0, 0.5)]
 #setups += [EloRatings(.05, 1500, 400)]
 #setups += [RebinCleaner(b) for b in ["1144477","1444447","1114777","1122233","1222223","1112333"]]
-#setups += [SvdCleaner(k) for k in [25, 50, 75, 100, 200, 300, 500]]
+#setups += [SvdCleaner(k) for k in range(1, 21)]
+setups += [SvdCleaner(k) for k in range(1, 11)]
+#setups += [LatentCleaner(k) for k in range(1, 11)]
+#setups += [FillCleaner(0), FillCleaner(1), FillCleaner(7)]
 
 results = []
 parameters = set()
 
 for cleaner in setups:
-    agg = cleaner.scores(concatted).sort(['compound', 'const'])
-    whole_clean = cleaner.scores(whole_orig).sort('compound')
+    agg = aggregate_ratings(cleaner.scores(concatted)).sort(['compound', 'const'])
+    whole_clean = aggregate_ratings(cleaner.scores(whole_orig)).sort('compound')
     row = cleaner.parameters()
     parameters.update(row.keys())
 
@@ -204,16 +242,27 @@ for cleaner in setups:
         rho, p = rho_with_wholes(together, whole_clean)
         row['Whole judgements cleaned (%s)' % method] = rho
 
-    for measure in ['cosine', 'jaccard']:
+    for measure in ASSOC_METHODS:
         rho, p = rho_with_assoc(agg, assoc, measure)
         # print "with assoc %s rho: %f" % (measure, rho)
         row['Association sim (%s)' % measure] = rho
+
+    # sys.stderr.write("row: %s\n" % row)
 
     results.append(row)
 
 results = pd.DataFrame(results)
 melt(results, id_vars=parameters).to_csv(sys.stdout, index=False)
 
+
+# comp_means = {}
+# for cleaner in setups:
+#     agg = aggregate_ratings(cleaner.scores(concatted)) #.sort(['compound', 'const'])
+#     comp_means[str(cleaner)] = agg['mean']
+#     comp_means['compound'] = agg['compound']
+#     comp_means['const'] = agg['const']
+# 
+# (pd.DataFrame(comp_means)).to_csv(sys.stdout, index=False)
 
 
 
