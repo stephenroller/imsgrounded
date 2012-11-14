@@ -255,14 +255,4 @@ results = pd.DataFrame(results)
 melt(results, id_vars=parameters).to_csv(sys.stdout, index=False)
 
 
-# comp_means = {}
-# for cleaner in setups:
-#     agg = aggregate_ratings(cleaner.scores(concatted)) #.sort(['compound', 'const'])
-#     comp_means[str(cleaner)] = agg['mean']
-#     comp_means['compound'] = agg['compound']
-#     comp_means['const'] = agg['const']
-# 
-# (pd.DataFrame(comp_means)).to_csv(sys.stdout, index=False)
-
-
 
