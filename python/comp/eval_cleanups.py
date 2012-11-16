@@ -6,7 +6,7 @@ import argparse
 
 import pandas as pd
 from pandas.core.reshape import melt
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, kendalltau
 
 from standard_cleanup import aggregate_ratings
 from standard_cleanup import remove_deviant_ratings, remove_deviant_subjects
@@ -80,17 +80,20 @@ class RemoveDeviantRatings(Cleaner):
     def __str__(self):
         return "Remove Judgements (z < %f)" % self.zscore
 
-# class EloRatings(Cleaner):
-#     def __init__(self, k=32, start=1500, spread=400):
-#         self.k = k
-#         self.start = start
-#         self.spread = spread
-#
-#     def parameters(self):
-#         return dict(elo_k=self.k, elo_start=self.start, elo_spread=self.spread)
-#
-#     def scores(self, df):
-#         return elo(df, self.k, self.start, self.spread)
+class EloRatings(Cleaner):
+    def __init__(self, k=32, start=1500, spread=400):
+        self.k = k
+        self.start = start
+        self.spread = spread
+
+    def parameters(self):
+        return dict(elo_k=self.k)
+
+    def scores(self, df):
+        return elo(df, self.k, self.start, self.spread)
+
+    def __str__(self):
+        return "Elo (k=%d, start=%f, spread=%f)" % (self.k, self.start, self.spread)
 
 class RebinCleaner(Cleaner):
     def __init__(self, new_bins):
@@ -164,25 +167,27 @@ def combine_measures(agg_heads_and_mods, method='prod'):
     together['compound'] = together.index
     return together
 
-def rho_with_wholes(indiv, whole):
-    assert (indiv['compound'] == whole['compound']).all()
-
-    rho, p = spearmanr(indiv['mean'], whole['mean'])
-    # hardcode statistical significance
-    if not p < .05:
-        #import pdb
-        #pdb.set_trace()
-        sys.stderr.write("Uh oh, got a p < .05 (%f)\n" % p)
-    return rho, p
-
-def rho_with_assoc(indiv, assoc, measure):
-    assert (indiv['compound'] == assoc['compound']).all()
-    assert (indiv['const'] == assoc['const']).all()
-    assert measure in ('jaccard', 'cosine')
-    return spearmanr(indiv['mean'], assoc[measure])
-
-
-
+# def rho_with_wholes(indiv, whole):
+#     assert (indiv['compound'] == whole['compound']).all()
+# 
+#     rho, p = spearmanr(indiv['mean'], whole['mean'])
+#     # rho, p = kendalltau(indiv['mean'], whole['mean'])
+#     # hardcode statistical significance
+#     if not p < .05:
+#         #import pdb
+#         #pdb.set_trace()
+#         sys.stderr.write("Uh oh, got a p < .05 (%f)\n" % p)
+#     return rho, p
+# 
+# def rho_with_assoc(indiv, assoc, measure):
+#     assert (indiv['compound'] == assoc['compound']).all()
+#     assert (indiv['const'] == assoc['const']).all()
+#     assert measure in ('jaccard', 'cosine')
+#     # return kendalltau(indiv['mean'], assoc[measure])
+#     return spearmanr(indiv['mean'], assoc[measure])
+# 
+# 
+# 
 
 
 heads = pd.read_csv(HEAD_FILE)
@@ -213,46 +218,74 @@ assoc = assoc.sort(['compound', 'const'])
 concatted = pd.concat([heads, mods], ignore_index=True)
 
 
-setups = [BaselineCleaner()]
-#setups += [RemoveDeviantSubjectCleaner(r) for r in decrange(0.35, 0.6, 0.05)]
-#setups += [RemoveDeviantRatings(z) for z in decrange(1.0, 3.0, 0.5)]
-#setups += [EloRatings(.05, 1500, 400)]
-#setups += [RebinCleaner(b) for b in ["1144477","1444447","1114777","1122233","1222223","1112333"]]
-#setups += [SvdCleaner(k) for k in range(1, 21)]
-setups += [SvdCleaner(k) for k in range(1, 11)]
-#setups += [LatentCleaner(k) for k in range(1, 11)]
-#setups += [FillCleaner(0), FillCleaner(1), FillCleaner(7)]
+setups = []
+setups += [BaselineCleaner()]
+setups += [RemoveDeviantSubjectCleaner(r) for r in decrange(0.20, 0.6, 0.05)]
+setups += [RemoveDeviantRatings(z) for z in decrange(1.0, 4.0, 0.5)]
+#setups += [EloRatings(k, 1500, 400) for k in [.001, .05, .1, 1, 5, 10, 30]]
+setups += [RebinCleaner(b) for b in ["1144477","1444447","1114777","1122233","1222223","1112333"]]
+setups += [SvdCleaner(k) for k in range(1, 31)]
+setups += [FillCleaner(0), FillCleaner(1), FillCleaner(7)]
 
 results = []
 parameters = set()
 
+CONCAT_BEFORE = True
+
 for cleaner in setups:
-    agg = aggregate_ratings(cleaner.scores(concatted)).sort(['compound', 'const'])
+    sys.stderr.write("Evaluating model: %s\n" % cleaner)
+    if CONCAT_BEFORE:
+        concat_cleaned = cleaner.scores(concatted)
+    else:
+        concat_cleaned = pd.concat([cleaner.scores(heads), cleaner.scores(mods)], ignore_index=True)
+    agg = aggregate_ratings(concat_cleaned).sort(['compound', 'const'])
+    sys.stderr.write("Finished cleaning head/const ratings. (%s)\n" % cleaner)
     whole_clean = aggregate_ratings(cleaner.scores(whole_orig)).sort('compound')
-    row = cleaner.parameters()
-    parameters.update(row.keys())
+    sys.stderr.write("Finished cleaning whole ratings. (%s)\n" % cleaner)
+    row_rho = cleaner.parameters()
+    row_rho['metric'] = 'rho'
+    row_tau = cleaner.parameters()
+    row_tau['metric'] = 'tau'
+    parameters.update(row_rho.keys())
 
-    for method in COMBINE_METHODS:
-        together = combine_measures(agg, method)
-        together = together.sort('compound')
-        rho, p = rho_with_wholes(together, whole)
-        # print "with wholes rho %s: %f" % (method, rho)
-        row['Whole judgements (%s)' % method] = rho
-        # and now when we clean up whole measures
-        rho, p = rho_with_wholes(together, whole_clean)
-        row['Whole judgements cleaned (%s)' % method] = rho
+    together = combine_measures(agg, 'prod').sort('compound')
+    rho, p1 = spearmanr(together['mean'], whole['mean'])
+    tau, p2 = kendalltau(together['mean'], whole['mean'])
+    row_rho['whole'] = rho
+    row_tau['whole'] = tau
 
-    for measure in ASSOC_METHODS:
-        rho, p = rho_with_assoc(agg, assoc, measure)
-        # print "with assoc %s rho: %f" % (measure, rho)
-        row['Association sim (%s)' % measure] = rho
+    # and now when we clean up whole measures
+    rho, p1 = spearmanr(together['mean'], whole_clean['mean'])
+    tau, p2 = kendalltau(together['mean'], whole_clean['mean'])
+    row_rho['whole cleaned'] = rho
+    row_tau['whole cleaned'] = tau
 
-    # sys.stderr.write("row: %s\n" % row)
+    rho, p1 = spearmanr(agg['mean'], assoc['jaccard'])
+    tau, p2 = kendalltau(agg['mean'], assoc['jaccard'])
+    row_rho['association sim'] = rho
+    row_tau['association sim'] = tau
 
-    results.append(row)
+    results.append(row_rho)
+    results.append(row_tau)
 
 results = pd.DataFrame(results)
-melt(results, id_vars=parameters).to_csv(sys.stdout, index=False)
+output = melt(results, id_vars=parameters)
+output.to_csv(sys.stdout, index=False)
+
+# produce plots
+from rplots import line_plot
+import operator
+parameters.remove('metric')
+for p in parameters:
+    other_params = parameters - set([p])
+    if other_params:
+        experiment = reduce(operator.and_, [output[op].isnull() for op in other_params])
+        experiment = output[experiment]
+    else:
+        experiment = output
+    line_plot("graphs/" + p + ".pdf", experiment, p, 'value', 'variable',
+            ylab='Resulting Correlation',
+            linetype='metric', linename="Metric", colorname="Eval Method")
 
 
 
