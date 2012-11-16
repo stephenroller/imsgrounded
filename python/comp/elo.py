@@ -25,13 +25,13 @@ def gen_matches_randInf(ratings_data, trials=5000000):
             continue
         a = user_ratings[i]
         b = user_ratings[k]
-        yield (i, k, a - b, b - a)
-#         if a == b:
-#             yield (i, k, 0.5, 0.5)
-#         elif a < b:
-#             yield (i, k, 0.0, 1.0)
-#         elif a > b:
-#             yield (i, k, 1.0, 0.0)
+        # yield (i, k, a - b, b - a)
+        if a == b:
+            yield (i, k, 0.5, 0.5)
+        elif a < b:
+            yield (i, k, 0.0, 1.0)
+        elif a > b:
+            yield (i, k, 1.0, 0.0)
 
 
 def compute_elo(matches, kfactor, start, spread):
@@ -66,9 +66,9 @@ def elos_to_df(elo_dict, orig_df):
         results.append({
             'compound': orig_df['compound'][item],
             'const': orig_df['const'][item],
-            'mean': elo
+            'elo': elo
         })
-    return pd.DataFrame(results)
+    return pd.DataFrame(results, columns=('compound', 'const', 'elo'))
 
 
 def elo(df, kfactor=0.03, start=1500.0, spread=400.0):
