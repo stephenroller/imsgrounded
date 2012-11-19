@@ -73,8 +73,8 @@ def netflix_svd(data_only, k, epochs, learning_rate):
             E = (R - np.dot(U, V))
             E[np.isnan(E)] = 0
             mag_E = (E ** 2).mean()
-            if t % 1000 == 0:
-                sys.stderr.write("K = %d, t = %d\t |E| = %.5f\t dE = %.5f\n" % (ck, t, mag_E, mag_E - last_mag_E))
+            #if t % 1000 == 0:
+            #    sys.stderr.write("K = %d, t = %d\t |E| = %.5f\t dE = %.5f\n" % (ck, t, mag_E, mag_E - last_mag_E))
             if abs(last_mag_E - mag_E) < 1e-5:
                 break
             last_mag_E = mag_E
