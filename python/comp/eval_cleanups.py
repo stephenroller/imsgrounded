@@ -10,7 +10,6 @@ from scipy.stats import spearmanr, kendalltau
 
 from standard_cleanup import aggregate_ratings
 from standard_cleanup import remove_deviant_ratings, remove_deviant_subjects
-from elo import elo
 from rebin import rebin
 from whiten import whiten
 
@@ -79,21 +78,6 @@ class RemoveDeviantRatings(Cleaner):
 
     def __str__(self):
         return "Remove Judgements (z < %f)" % self.zscore
-
-class EloRatings(Cleaner):
-    def __init__(self, k=32, start=1500, spread=400):
-        self.k = k
-        self.start = start
-        self.spread = spread
-
-    def parameters(self):
-        return dict(elo_k=self.k)
-
-    def scores(self, df):
-        return elo(df, self.k, self.start, self.spread)
-
-    def __str__(self):
-        return "Elo (k=%d, start=%f, spread=%f)" % (self.k, self.start, self.spread)
 
 class RebinCleaner(Cleaner):
     def __init__(self, new_bins):
@@ -223,6 +207,7 @@ setups += [BaselineCleaner()]
 setups += [RemoveDeviantSubjectCleaner(r) for r in decrange(0.20, 0.6, 0.05)]
 setups += [RemoveDeviantRatings(z) for z in decrange(1.0, 4.0, 0.5)]
 #setups += [EloRatings(k, 1500, 400) for k in [.001, .05, .1, 1, 5, 10, 30]]
+setups += [RemoveDeviantSubjectCleaner(r) for r in decrange(0.10, 0.6, 0.05)]
 setups += [RebinCleaner(b) for b in ["1144477","1444447","1114777","1122233","1222223","1112333"]]
 setups += [SvdCleaner(k) for k in range(1, 31)]
 setups += [FillCleaner(0), FillCleaner(1), FillCleaner(7)]
