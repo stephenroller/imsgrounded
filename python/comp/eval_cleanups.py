@@ -6,7 +6,7 @@ import argparse
 
 import pandas as pd
 from pandas.core.reshape import melt
-from scipy.stats import spearmanr, kendalltau
+from scipy.stats import spearmanr
 
 from standard_cleanup import aggregate_ratings
 from standard_cleanup import remove_deviant_ratings, remove_deviant_subjects
@@ -185,10 +185,10 @@ concatted = pd.concat([heads, mods], ignore_index=True)
 setups = []
 setups += [BaselineCleaner()]
 setups += [RemoveDeviantSubjectCleaner(r) for r in decrange(0.10, 0.6, 0.05)]
-#setups += [RemoveDeviantRatings(z) for z in decrange(1.0, 4.0, 0.5)]
+setups += [RemoveDeviantRatings(z) for z in decrange(1.0, 4.0, 0.5)]
 setups += [RebinCleaner(b) for b in ["1144477","1444447","1114777","1122233","1222223","1112333"]]
 setups += [SvdCleaner(k) for k in range(1, 11)]
-setups += [FillCleaner(0), FillCleaner(1), FillCleaner(7)]
+# setups += [FillCleaner(0), FillCleaner(1), FillCleaner(7)]
 
 results = []
 parameters = set()
@@ -210,12 +210,10 @@ for cleaner in setups:
 
     together = combine_measures(agg, 'prod').sort('compound')
     rho, p1 = spearmanr(together['mean'], whole['mean'])
-    tau, p2 = kendalltau(together['mean'], whole['mean'])
     row['whole'] = rho
 
     # and now when we clean up whole measures
     rho, p1 = spearmanr(together['mean'], whole_clean['mean'])
-    tau, p2 = kendalltau(together['mean'], whole_clean['mean'])
     row['whole cleaned'] = rho
 
     rho, p1 = spearmanr(agg['mean'], assoc['jaccard'])
