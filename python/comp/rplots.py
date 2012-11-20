@@ -43,7 +43,7 @@ def line_plot(pdf_file, data, x, y, var,
         labels = None
 
     if linetype and linetype != var:
-        data['group'] = data[var] + data['metric']
+        data['group'] = data[var].map(str) + data[linetype].map(str)
     else:
         data['group'] = data[var]
 
@@ -55,11 +55,12 @@ def line_plot(pdf_file, data, x, y, var,
     gp = gg2.ggplot(rdata)
     pp = (gp + gg2.geom_point(size=3) +
             gg2.scale_colour_hue(name=(colorname or var)) +
+            #gg2.scale_colour_continuous(low="black") +
             gg2.aes_string(x=x, y=y, color=var, variable=var) +
             ggtitle(title or "") +
             xlabel(xlab or x) +
-            ylabel(ylab or y) +
-            gg2.scale_y_continuous(breaks=seq(0.0, 1.0, 0.05))
+            ylabel(ylab or y) #+
+            #gg2.scale_y_continuous(breaks=seq(0.0, 1.0, 0.05))
             )
 
     # line type stuff
