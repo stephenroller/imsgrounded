@@ -132,7 +132,7 @@ class FillCleaner(Cleaner):
 def decrange(start, stop, inc):
     out = []
     x = start
-    while x <= stop:
+    while (inc > 0 and x <= stop) or (inc < 0 and x >= stop):
         out.append(x)
         x += inc
     return out
@@ -177,67 +177,73 @@ def load_data():
     return heads, mods, whole, assoc
 
 
-# go ahead and sort the whole judgements and assoc measures
-heads, mods, whole_orig, assoc = load_data()
-whole = aggregate_ratings(whole_orig)
-concatted = pd.concat([heads, mods], ignore_index=True)
+if __name__ == '__main__':
+    # go ahead and sort the whole judgements and assoc measures
+    heads, mods, whole_orig, assoc = load_data()
+    whole = aggregate_ratings(whole_orig)
+    concatted = pd.concat([heads, mods], ignore_index=True)
+    concatted_uncleaned_together = combine_measures(aggregate_ratings(concatted), 'prod').sort('compound')
 
-setups = []
-setups += [BaselineCleaner()]
-setups += [RemoveDeviantSubjectCleaner(r) for r in decrange(0.10, 0.6, 0.05)]
-setups += [RemoveDeviantRatings(z) for z in decrange(1.0, 4.0, 0.5)]
-setups += [RebinCleaner(b) for b in ["1144477","1444447","1114777","1122233","1222223","1112333"]]
-setups += [SvdCleaner(k) for k in range(1, 11)]
-# setups += [FillCleaner(0), FillCleaner(1), FillCleaner(7)]
+    setups = []
+    setups += [BaselineCleaner()]
+    setups += [RemoveDeviantSubjectCleaner(r) for r in decrange(0.10, 0.6, 0.05)]
+    setups += [RemoveDeviantRatings(z) for z in decrange(1.0, 4.0, 0.5)]
+    setups += [RebinCleaner(b) for b in ["1144477","1444447","1114777","1122233","1222223","1112333"]]
+    setups += [SvdCleaner(k) for k in range(1, 11)]
+    #setups += [FillCleaner(0), FillCleaner(1), FillCleaner(7)]
 
-results = []
-parameters = set()
+    results = []
+    parameters = set()
 
-CONCAT_BEFORE = True
+    CONCAT_BEFORE = True
 
-for cleaner in setups:
-    sys.stderr.write("Evaluating model: %s\n" % cleaner)
-    if CONCAT_BEFORE:
-        concat_cleaned = cleaner.scores(concatted)
-    else:
-        concat_cleaned = pd.concat([cleaner.scores(heads), cleaner.scores(mods)], ignore_index=True)
-    agg = aggregate_ratings(concat_cleaned).sort(['compound', 'const'])
-    sys.stderr.write("Finished cleaning head/const ratings. (%s)\n" % cleaner)
-    whole_clean = aggregate_ratings(cleaner.scores(whole_orig)).sort('compound')
-    sys.stderr.write("Finished cleaning whole ratings. (%s)\n" % cleaner)
-    row = cleaner.parameters()
-    parameters.update(row.keys())
+    for cleaner in setups:
+        sys.stderr.write("Evaluating model: %s\n" % cleaner)
+        if CONCAT_BEFORE:
+            concat_cleaned = cleaner.scores(concatted)
+        else:
+            concat_cleaned = pd.concat([cleaner.scores(heads), cleaner.scores(mods)], ignore_index=True)
+        agg = aggregate_ratings(concat_cleaned).sort(['compound', 'const'])
+        sys.stderr.write("Finished cleaning head/const ratings. (%s)\n" % cleaner)
+        whole_clean = aggregate_ratings(cleaner.scores(whole_orig)).sort('compound')
+        sys.stderr.write("Finished cleaning whole ratings. (%s)\n" % cleaner)
+        row = cleaner.parameters()
+        parameters.update(row.keys())
 
-    together = combine_measures(agg, 'prod').sort('compound')
-    rho, p1 = spearmanr(together['mean'], whole['mean'])
-    row['whole'] = rho
+        together = combine_measures(agg, 'prod').sort('compound')
+        rho, p1 = spearmanr(together['mean'], whole['mean'])
+        row['Parts Cleaned'] = rho
 
-    # and now when we clean up whole measures
-    rho, p1 = spearmanr(together['mean'], whole_clean['mean'])
-    row['whole cleaned'] = rho
+        # and now when we clean up whole measures
+        rho, p1 = spearmanr(together['mean'], whole_clean['mean'])
+        row['Parts & Whole Cleaned'] = rho
 
-    rho, p1 = spearmanr(agg['mean'], assoc['jaccard'])
-    row['association sim'] = rho
+        # clean the whole, but not the parts
+        rho, p1 = spearmanr(concatted_uncleaned_together['mean'], whole_clean['mean'])
+        row['Whole Cleaned'] = rho
 
-    results.append(row)
+        rho, p1 = spearmanr(agg['mean'], assoc['jaccard'])
+        row['Association Norms'] = rho
 
-results = pd.DataFrame(results)
-output = melt(results, id_vars=parameters)
-output.to_csv(sys.stdout, index=False)
+        results.append(row)
 
-# produce plots
-from rplots import line_plot
-import operator
-for p in parameters:
-    other_params = parameters - set([p])
-    if other_params:
-        experiment = reduce(operator.and_, [output[op].isnull() for op in other_params])
-        experiment = output[experiment]
-    else:
-        experiment = output
-    line_plot("graphs/" + p + ".pdf", experiment, p, 'value', 'variable',
-            ylab='Resulting Correlation',
-            colorname="Eval Method")
+    results = pd.DataFrame(results)
+    output = melt(results, id_vars=parameters)
+    output.to_csv(sys.stdout, index=False)
+
+    # produce plots
+    from rplots import line_plot
+    import operator
+    for p in parameters:
+        other_params = parameters - set([p])
+        if other_params:
+            experiment = reduce(operator.and_, [output[op].isnull() for op in other_params])
+            experiment = output[experiment]
+        else:
+            experiment = output
+        line_plot("graphs/" + p + ".pdf", experiment, p, 'value', 'variable',
+                ylab='Resulting Correlation',
+                colorname="Eval Method")
 
 
 
