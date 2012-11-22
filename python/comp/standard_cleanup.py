@@ -9,6 +9,26 @@ from scipy.stats import spearmanr
 DEFAULT_MIN_CORR = 0.5
 DEFAULT_ZSCORE = 1.0
 
+def remove_most_deviant_subjects(data, n):
+    judgement_columns = data.columns[2:]
+    agreements = {}
+    for j in judgement_columns:
+        ratings = data[j]
+        other_subjects = list(set(judgement_columns) - set([j]))
+        exclusive_means = data[other_subjects].transpose().mean()
+        rho, p = spearmanr(ratings, exclusive_means)
+        # sys.stderr.write("%s with others: %f\n" % (j, rho))
+        agreements[j] = rho
+
+    by_rho = sorted(agreements.keys(), key=agreements.__getitem__)
+
+    out_data = data.copy()
+    for j in by_rho[:n]:
+        out_data[j] = float('nan')
+
+    return out_data
+
+
 def remove_deviant_subjects(data, min_corr=DEFAULT_MIN_CORR):
     # TODO: don't hardcode this
     judgement_columns = data.columns[2:]
