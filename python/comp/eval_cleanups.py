@@ -4,20 +4,20 @@
 import sys
 import argparse
 
+import numpy as np
 import pandas as pd
 from pandas.core.reshape import melt
-from scipy.stats import spearmanr
 
-from standard_cleanup import aggregate_ratings
+from standard_cleanup import aggregate_ratings, na_spearmanr
 from standard_cleanup import remove_deviant_ratings, remove_deviant_subjects
 from rebin import rebin
-from whiten import whiten
+from whiten import netflix_svd
 
 
-HEAD_FILE = '/Users/stephen/Working/imsgrounded/data/comp/comp_ratings_head.csv'
-MOD_FILE = '/Users/stephen/Working/imsgrounded/data/comp/comp_ratings_const.csv'
-WHOLE_FILE = '/Users/stephen/Working/imsgrounded/data/comp/amt_reshaped.csv'
-ASSOC_FILE = '/Users/stephen/Working/imsgrounded/results/big_assoc_similarties.csv'
+HEAD_FILE =  'data/comp/comp_ratings_head.csv'
+MOD_FILE =   'data/comp/comp_ratings_const.csv'
+WHOLE_FILE = 'data/comp/amt_reshaped.csv'
+ASSOC_FILE = 'results/big_assoc_similarties.csv'
 
 # COMBINE_METHODS = ['sum', 'prod', 'hmean']
 COMBINE_METHODS = ['prod']
@@ -102,18 +102,45 @@ class RebinCleaner(Cleaner):
         return "Rebin (%s)" % self.bin_names
 
 
-class SvdCleaner(Cleaner):
-    def __init__(self, k):
-        self.k = k
+class CachedSvdCleaner():
+    def __init__(self, max_k, learning_rate=.001):
+        self.whitened = {}
+        self.max_k = max_k
+        self.lr = learning_rate
 
-    def parameters(self):
-        return dict(svd_k=self.k)
+    def scores(self, df, k):
+        if id(df) not in self.whitened:
+            just_data = df[df.columns[2:]]
+            self.whitened[id(df)] = netflix_svd(just_data, self.max_k, epochs=10000, learning_rate=self.lr)
 
-    def scores(self, df):
-        return whiten(df, self.k)
+        U, V = self.whitened[id(df)]
+        W = np.dot(U[:,:k], V[:k,:])
+        whitened_data = df.copy()
+        for i, j in enumerate(df.columns[2:]):
+            whitened_data[j] = W[:,i]
 
-    def __str__(self):
-        return "SVD (Rank %d)" % self.k
+        return whitened_data
+
+def create_svd_cleaners(max_k):
+    cacher = CachedSvdCleaner(max_k)
+    cleaners = []
+
+    for k in xrange(1, max_k + 1):
+        class _SvdCleaner(Cleaner):
+            def __init__(self, k):
+                self.k = k
+                self.cacher = cacher
+
+            def scores(self, df):
+                return self.cacher.scores(df, self.k)
+
+            def parameters(self):
+                return dict(svd_k=self.k)
+
+            def __str__(self):
+                return "SVD (rank %d)" % self.k
+        cleaners.append(_SvdCleaner(k))
+    return cleaners
 
 class FillCleaner(Cleaner):
     def __init__(self, fill_value):
@@ -187,15 +214,21 @@ if __name__ == '__main__':
     setups = []
     setups += [BaselineCleaner()]
     setups += [RemoveDeviantSubjectCleaner(r) for r in decrange(0.10, 0.6, 0.05)]
-    setups += [RemoveDeviantRatings(z) for z in decrange(1.0, 4.0, 0.5)]
-    setups += [RebinCleaner(b) for b in ["1144477","1444447","1114777","1122233","1222223","1112333"]]
-    setups += [SvdCleaner(k) for k in range(1, 11)]
+    setups += [RemoveDeviantRatings(z) for z in decrange(1.0, 4.0, 0.25)]
+    #setups += [RebinCleaner(b) for b in ["1144477","1444447","1114777","1122233","1222223","1112333"]]
+    setups += create_svd_cleaners(20)
     #setups += [FillCleaner(0), FillCleaner(1), FillCleaner(7)]
 
     results = []
     parameters = set()
 
     CONCAT_BEFORE = True
+
+    jcc = concatted.columns[2:]
+    blank_concat = float(pd.notnull(concatted[jcc]).sum().sum())
+    jcw = whole_orig.columns[2:]
+    blank_whole = float(pd.notnull(whole_orig[jcw]).sum().sum())
+
 
     for cleaner in setups:
         sys.stderr.write("Evaluating model: %s\n" % cleaner)
@@ -205,25 +238,39 @@ if __name__ == '__main__':
             concat_cleaned = pd.concat([cleaner.scores(heads), cleaner.scores(mods)], ignore_index=True)
         agg = aggregate_ratings(concat_cleaned).sort(['compound', 'const'])
         sys.stderr.write("Finished cleaning head/const ratings. (%s)\n" % cleaner)
-        whole_clean = aggregate_ratings(cleaner.scores(whole_orig)).sort('compound')
+        whole_clean_noagg = cleaner.scores(whole_orig)
+        whole_clean = aggregate_ratings(whole_clean_noagg).sort('compound')
         sys.stderr.write("Finished cleaning whole ratings. (%s)\n" % cleaner)
         row = cleaner.parameters()
+
+        blank_cleaned_concat = pd.notnull(concat_cleaned[jcc]).sum().sum()
+        blank_cleaned_whole = pd.notnull(whole_clean_noagg[jcw]).sum().sum()
+
+        row['Data Retained (Indiv)'] = blank_cleaned_concat / blank_concat
+        row['Data Retained (Whole)'] = blank_cleaned_whole / blank_whole
+        row['Data Retained (Both)'] = (blank_cleaned_whole + blank_cleaned_concat) / (blank_concat + blank_whole)
+
+
         parameters.update(row.keys())
 
         together = combine_measures(agg, 'prod').sort('compound')
-        rho, p1 = spearmanr(together['mean'], whole['mean'])
+        rho, p1 = na_spearmanr(together['mean'], whole['mean'])
         row['Parts Cleaned'] = rho
 
         # and now when we clean up whole measures
-        rho, p1 = spearmanr(together['mean'], whole_clean['mean'])
+        rho, p1 = na_spearmanr(together['mean'], whole_clean['mean'])
         row['Parts & Whole Cleaned'] = rho
 
         # clean the whole, but not the parts
-        rho, p1 = spearmanr(concatted_uncleaned_together['mean'], whole_clean['mean'])
+        rho, p1 = na_spearmanr(concatted_uncleaned_together['mean'], whole_clean['mean'])
         row['Whole Cleaned'] = rho
 
-        rho, p1 = spearmanr(agg['mean'], assoc['jaccard'])
-        row['Association Norms'] = rho
+        rho, p1 = na_spearmanr(agg['mean'], assoc['jaccard'])
+        row['Association Norms (Indiv)'] = rho
+
+        combined_assoc = combine_measures(assoc[['compound', 'const', 'jaccard']]).sort('compound')
+        rho, p1 = na_spearmanr(combined_assoc['jaccard'], whole_clean['mean'])
+        row['Association Norms (Whole)'] = rho
 
         results.append(row)
 
@@ -231,19 +278,19 @@ if __name__ == '__main__':
     output = melt(results, id_vars=parameters)
     output.to_csv(sys.stdout, index=False)
 
-    # produce plots
-    from rplots import line_plot
-    import operator
-    for p in parameters:
-        other_params = parameters - set([p])
-        if other_params:
-            experiment = reduce(operator.and_, [output[op].isnull() for op in other_params])
-            experiment = output[experiment]
-        else:
-            experiment = output
-        line_plot("graphs/" + p + ".pdf", experiment, p, 'value', 'variable',
-                ylab='Resulting Correlation',
-                colorname="Eval Method")
+    # # produce plots
+    # from rplots import line_plot
+    # import operator
+    # for p in parameters:
+    #     other_params = parameters - set([p])
+    #     if other_params:
+    #         experiment = reduce(operator.and_, [output[op].isnull() for op in other_params])
+    #         experiment = output[experiment]
+    #     else:
+    #         experiment = output
+    #     line_plot("graphs/" + p + ".pdf", experiment, p, 'value', 'variable',
+    #             ylab='Resulting Correlation',
+    #             colorname="Eval Method")
 
 
 

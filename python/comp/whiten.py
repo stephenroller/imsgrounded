@@ -32,7 +32,7 @@ def whiten_with_filled_zeros(data, k):
     return whitened_data
 
 
-def netflix_svd(data_only, k, epochs, learning_rate):
+def netflix_svd(data_only, max_k, epochs, learning_rate):
     # following http://sifter.org/~simon/journal/20070815.html
     R = data_only.as_matrix()
     NULLS = pd.isnull(data_only).as_matrix()
@@ -40,8 +40,8 @@ def netflix_svd(data_only, k, epochs, learning_rate):
 
     # U, S, V = np.linalg.svd(np.random.rand(*data.shape), full_matrices=False)
     # we don't actually need S
-    U = np.ones((m, k)) / 10.0
-    V = np.ones((k, n)) / 10.0
+    U = np.ones((m, max_k)) / 10.0
+    V = np.ones((max_k, n)) / 10.0
 
     ck = 0
     while True:
@@ -52,16 +52,7 @@ def netflix_svd(data_only, k, epochs, learning_rate):
             P = np.dot(U, V)
             E = R - P
             E[NULLS] = 0
-            # TODO: MAKE THIS NICE AND VECTORIZED
-            # Udelta = np.zeros((m, ))
-            # Vdelta = np.zeros((n, ))
-            # for i in xrange(m):
-            #     for j in xrange(n):
-            #         if NULLS[i,j]:
-            #             continue
-            #         e = (R[i,j] - P[i,j])
-            #         Udelta[i] += e * V[ck,j]
-            #         Vdelta[j] += e * U[i,ck]
+
             Udelta = np.dot(E, V[ck,:])
             Vdelta = np.dot(U[:,ck], E)
 
@@ -80,7 +71,7 @@ def netflix_svd(data_only, k, epochs, learning_rate):
             last_mag_E = mag_E
 
         ck += 1
-        if ck >= k:
+        if ck >= max_k:
             break
 
     return U, V
@@ -90,7 +81,7 @@ def whiten(df, k, epochs=10000, learning_rate=.001):
     data = df[judgement_columns]
     U, V = netflix_svd(data, k, epochs, learning_rate)
 
-    W = np.dot(U, V)
+    W = np.dot(U[:,:k], V[:k,:])
     whitened_data = df.copy()
     for i, j in enumerate(judgement_columns):
         whitened_data[j] = W[:,i]

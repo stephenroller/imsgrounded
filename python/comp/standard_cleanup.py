@@ -3,30 +3,50 @@
 import sys
 import pandas as pd
 import argparse
+import math
 from os.path import basename
 from scipy.stats import spearmanr
 
 DEFAULT_MIN_CORR = 0.5
 DEFAULT_ZSCORE = 1.0
 
-def remove_most_deviant_subjects(data, n):
-    judgement_columns = data.columns[2:]
-    agreements = {}
-    for j in judgement_columns:
-        ratings = data[j]
-        other_subjects = list(set(judgement_columns) - set([j]))
-        exclusive_means = data[other_subjects].transpose().mean()
-        rho, p = spearmanr(ratings, exclusive_means)
-        # sys.stderr.write("%s with others: %f\n" % (j, rho))
-        agreements[j] = rho
+def na_spearmanr(a, b):
+    mask = a.notnull().values & b.notnull().values
+    rho, p = spearmanr(a[mask], b[mask])
+    if not isinstance(rho, float) or math.isnan(rho):
+        return -1.0, 1.0
+    else:
+        return rho, p
 
-    by_rho = sorted(agreements.keys(), key=agreements.__getitem__)
+deviant_subject_cache = {}
+def remove_most_deviant_subjects(data, n):
+    if id(data) in deviant_subject_cache:
+        by_rho = deviant_subject_cache[id(data)]
+    else:
+        judgement_columns = data.columns[2:]
+        agreements = {}
+        for j in judgement_columns:
+            ratings = data[j]
+            other_subjects = list(set(judgement_columns) - set([j]))
+            exclusive_means = data[other_subjects].transpose().mean()
+            rho, p = na_spearmanr(ratings, exclusive_means)
+            # sys.stderr.write("%s with others: %f\n" % (j, rho))
+            agreements[j] = rho
+
+        by_rho = sorted(agreements.keys(), key=agreements.__getitem__)
+        deviant_subject_cache[id(data)] = by_rho
 
     out_data = data.copy()
     for j in by_rho[:n]:
         out_data[j] = float('nan')
 
     return out_data
+
+def remove_percent_deviant_subjects(data, p):
+    judgement_columns = data.columns[2:]
+    n = int(math.ceil(p * len(judgement_columns)))
+    return remove_most_deviant_subjects(data, n)
+
 
 
 def remove_deviant_subjects(data, min_corr=DEFAULT_MIN_CORR):
@@ -38,7 +58,7 @@ def remove_deviant_subjects(data, min_corr=DEFAULT_MIN_CORR):
         ratings = data[j]
         other_subjects = list(set(judgement_columns) - set([j]))
         exclusive_means = data[other_subjects].transpose().mean()
-        rho, p = spearmanr(ratings, exclusive_means)
+        rho, p = na_spearmanr(ratings, exclusive_means)
         # sys.stderr.write("%s with others: %f\n" % (j, rho))
         if rho < min_corr:
             # sys.stderr.write("Removing %s\n" % j)
@@ -50,20 +70,29 @@ def remove_deviant_subjects(data, min_corr=DEFAULT_MIN_CORR):
 
     return out_data
 
+deviant_ratings_cache = {}
 def remove_deviant_ratings(data, outlier_zscore=DEFAULT_ZSCORE):
     judgement_columns = data.columns[2:]
-    rows = []
-    for i, row in data.iterrows():
-        new_row = row.copy()
-        mean = new_row[judgement_columns].transpose().mean()
-        stddev = new_row[judgement_columns].transpose().std()
-        for j in judgement_columns:
-            zscore = (row[j] - mean) / stddev
-            if abs(zscore) > outlier_zscore:
-                new_row[j] = float('nan')
-                #sys.stderr.write("Removed judgement %s from %s-%s (z*: %f, mn: %f, j: %d, s: %f).\n" % (j, row["compound"], row["const"], zscore, mean, row[j], stddev))
-        rows.append(new_row)
-    return pd.DataFrame(rows)
+    if id(data) in deviant_ratings_cache:
+        zscores = deviant_ratings_cache[id(data)]
+    else:
+        rows = []
+        for i, row in data.iterrows():
+            new_row = row.copy()
+            mean = new_row[judgement_columns].transpose().mean()
+            stddev = new_row[judgement_columns].transpose().std()
+            for j in judgement_columns:
+                zscore = (row[j] - mean) / stddev
+                new_row[j] = abs(zscore)
+            rows.append(new_row)
+        zscores = pd.DataFrame(rows)[judgement_columns]
+        deviant_ratings_cache[id(data)] = zscores
+
+    data = data.copy()
+    data[judgement_columns] = data[judgement_columns].where(zscores <= outlier_zscore)
+    return data
+
+
 
 def aggregate_ratings(data):
     output_data = []
@@ -129,12 +158,12 @@ def main():
         by_sum = agg.groupby('compound').sum()
         by_sum['compound'] = by_sum.index
         by_sum = by_sum.sort('compound')
-        rho_sum, p_sum = spearmanr(by_sum['mean'], whole_compounds['mean'])
+        rho_sum, p_sum = na_spearmanr(by_sum['mean'], whole_compounds['mean'])
 
         by_prod = agg.groupby('compound').prod()
         by_prod['compound'] = by_prod.index
         by_prod = by_prod.sort('compound')
-        rho_prod, p_prod = spearmanr(by_prod['mean'], whole_compounds['mean'])
+        rho_prod, p_prod = na_spearmanr(by_prod['mean'], whole_compounds['mean'])
 
         sys.stderr.write("rho w/ whole compounds by sum: %f\n" % rho_sum)
         sys.stderr.write("rho w/ whole compounds by prod: %f\n" % rho_prod)

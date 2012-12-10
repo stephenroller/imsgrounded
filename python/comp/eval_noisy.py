@@ -17,6 +17,9 @@ REPEATS = 100
 heads, mods, whole, assoc = load_data()
 concatted = pd.concat([heads, mods], ignore_index=True)
 
+agg_concat_orig = combine_measures(aggregate_ratings(concatted))['mean']
+agg_whole_orig = aggregate_ratings(whole)['mean']
+
 # ------ RANDOMIZE BY ZSCORES TEST --------
 
 def mass_outside(zstar):
@@ -25,21 +28,18 @@ def mass_outside(zstar):
 output = []
 # first zscores
 ZSCORES = [None] + decrange(4.0, 1.0, -0.25)
-NOISES = [0.01, 0.05, 0.1, 0.25, 0.5]
+NOISES = [0.0, 0.01, 0.05, 0.1, 0.25, 0.5]
 
 pb = ProgressBar(len(ZSCORES) * REPEATS * len(NOISES))
 pb.errput()
 for zscore in ZSCORES:
     cleaner = zscore and RemoveDeviantRatings(zscore) or BaselineCleaner()
     for percent_noise in NOISES:
-        z = []
-        a = []
-        b = []
-        c = []
+        this_row = {}
         for i in xrange(REPEATS):
-            noisy_concat = randomize_values(concatted, percent_noise)
+            noisy_concat = randomize_offsets(concatted, percent_noise)
             clean_concat = cleaner.scores(noisy_concat)
-            noisy_whole = randomize_values(whole, percent_noise)
+            noisy_whole = randomize_offsets(whole, percent_noise)
             clean_whole = cleaner.scores(noisy_whole)
 
             agg_concat = combine_measures(aggregate_ratings(noisy_concat))['mean']
@@ -48,39 +48,38 @@ for zscore in ZSCORES:
             agg_cl_concat = combine_measures(aggregate_ratings(clean_concat))['mean']
             agg_cl_whole = aggregate_ratings(clean_whole)['mean']
 
-            rho_concat_whole, p = spearmanr(agg_concat, agg_whole)
-            rho_clconcat_whole, p = spearmanr(agg_cl_concat, agg_whole)
-            rho_concat_clwhole, p = spearmanr(agg_concat, agg_cl_whole)
-            rho_clconcat_clwhole, p = spearmanr(agg_cl_concat, agg_cl_whole)
+            pairs = {
+                'noisy_noisy': (agg_concat, agg_whole),
+                'clean_noisy': (agg_cl_concat, agg_whole),
+                'noisy_clean': (agg_concat, agg_cl_whole),
+                'clean_clean': (agg_cl_concat, agg_cl_whole),
+                'noisy_orig':  (agg_concat, agg_whole_orig),
+                'clean_orig':  (agg_cl_concat, agg_whole_orig),
+                'orig_noisy':  (agg_concat_orig, agg_whole),
+                'orig_clean':  (agg_concat_orig, agg_cl_whole),
+            }
 
-            z.append(rho_concat_whole)
-            a.append(rho_clconcat_whole)
-            b.append(rho_concat_clwhole)
-            c.append(rho_clconcat_clwhole)
+            for k, (l, r) in pairs.iteritems():
+                if k not in this_row:
+                    this_row[k] = []
+                rho, p = spearmanr(l, r)
+                this_row[k].append(rho)
 
             pb.incr()
             if i % 5 == 0 : pb.errput()
 
-        z = pd.Series(z)
-        a = pd.Series(a)
-        b = pd.Series(b)
-        c = pd.Series(c)
-
         row = dict(zscore=str(zscore), p=percent_noise)
-        row['concat_whole'] = z.mean()
-        row['concat_whole_low'] = z.mean() - 2 * z.std()
-        row['concat_whole_high'] = z.mean() + 2 * z.std()
-        row['concat2_whole'] = a.mean()
-        row['concat2_whole_low'] = a.mean() - 2 * a.std()
-        row['concat2_whole_high'] = a.mean() + 2 * a.std()
-        row['concat_whole2'] = b.mean()
-        row['concat_whole2_low'] = b.mean() - 2 * b.std()
-        row['concat_whole2_high'] = b.mean() + 2 * b.std()
-        row['concat2_whole2'] = c.mean()
-        row['concat2_whole2_low'] = c.mean() - 2 * c.std()
-        row['concat2_whole2_high'] = c.mean() + 2 * c.std()
+        for k, v in this_row.iteritems():
+            v = pd.Series(v)
+            mn = v.mean()
+            sd = v.std()
+            row[k] = mn
+            row[k + '_std'] = sd
+            row[k + '_low'] = mn - 2 * sd
+            row[k + '_high'] = mn + 2 * sd
 
-    output.append(row)
+
+        output.append(row)
 
     pb.errput()
 
@@ -242,65 +241,65 @@ print
 # ----- REPLACE SUBJECTS WITH RANDOMNESS ------
 
 
-from standard_cleanup import remove_most_deviant_subjects
-output = []
-NUM_DROP = range(25)
-pb = ProgressBar(len(NUM_DROP) * REPEATS)
-pb.errput()
-for n in NUM_DROP:
-    z, a, b, c = [], [], [], []
-    for i in xrange(REPEATS):
-        noisy_concat = replace_subjects(concatted, n)
-        noisy_whole = replace_subjects(whole, n)
-
-        agg_concat = combine_measures(aggregate_ratings(noisy_concat))['mean']
-        agg_whole = aggregate_ratings(noisy_whole)['mean']
-
-        agg_cl_concat = combine_measures(aggregate_ratings(remove_most_deviant_subjects(noisy_concat, n)))['mean']
-        agg_cl_whole = aggregate_ratings(remove_most_deviant_subjects(noisy_whole, n))['mean']
-
-        rho_concat_whole, p = spearmanr(agg_concat, agg_whole)
-        rho_clconcat_whole, p = spearmanr(agg_cl_concat, agg_whole)
-        rho_concat_clwhole, p = spearmanr(agg_concat, agg_cl_whole)
-        rho_clconcat_clwhole, p = spearmanr(agg_cl_concat, agg_cl_whole)
-
-        z.append(rho_concat_whole)
-        a.append(rho_clconcat_whole)
-        b.append(rho_concat_clwhole)
-        c.append(rho_clconcat_clwhole)
-
-        pb.incr()
-        if i % 5 == 0 : pb.errput()
-
-    z = pd.Series(z)
-    a = pd.Series(a)
-    b = pd.Series(b)
-    c = pd.Series(c)
-
-    row = dict(n=n)
-    row['concat_whole'] = z.mean()
-    row['concat_whole_low'] = z.mean() - 2 * z.std()
-    row['concat_whole_high'] = z.mean() + 2 * z.std()
-    row['concat2_whole'] = a.mean()
-    row['concat2_whole_low'] = a.mean() - 2 * a.std()
-    row['concat2_whole_high'] = a.mean() + 2 * a.std()
-    row['concat_whole2'] = b.mean()
-    row['concat_whole2_low'] = b.mean() - 2 * b.std()
-    row['concat_whole2_high'] = b.mean() + 2 * b.std()
-    row['concat2_whole2'] = c.mean()
-    row['concat2_whole2_low'] = c.mean() - 2 * c.std()
-    row['concat2_whole2_high'] = c.mean() + 2 * c.std()
-
-    output.append(row)
-
-    pb.errput()
-
-
-to_graph = pd.DataFrame(output)
-to_graph.to_csv(sys.stdout, index=False)
-
-
-
-
-
+# from standard_cleanup import remove_most_deviant_subjects
+# output = []
+# NUM_DROP = range(125)
+# pb = ProgressBar(len(NUM_DROP) * REPEATS)
+# pb.errput()
+# for n in NUM_DROP:
+#     z, a, b, c = [], [], [], []
+#     for i in xrange(REPEATS):
+#         noisy_concat = replace_subjects(concatted, n)
+#         noisy_whole = replace_subjects(whole, n)
+# 
+#         agg_concat = combine_measures(aggregate_ratings(noisy_concat))['mean']
+#         agg_whole = aggregate_ratings(noisy_whole)['mean']
+# 
+#         agg_cl_concat = combine_measures(aggregate_ratings(remove_most_deviant_subjects(noisy_concat, n)))['mean']
+#         agg_cl_whole = aggregate_ratings(remove_most_deviant_subjects(noisy_whole, n))['mean']
+# 
+#         rho_concat_whole, p = spearmanr(agg_concat, agg_whole)
+#         rho_clconcat_whole, p = spearmanr(agg_cl_concat, agg_whole)
+#         rho_concat_clwhole, p = spearmanr(agg_concat, agg_cl_whole)
+#         rho_clconcat_clwhole, p = spearmanr(agg_cl_concat, agg_cl_whole)
+# 
+#         z.append(rho_concat_whole)
+#         a.append(rho_clconcat_whole)
+#         b.append(rho_concat_clwhole)
+#         c.append(rho_clconcat_clwhole)
+# 
+#         pb.incr()
+#         if i % 5 == 0 : pb.errput()
+# 
+#     z = pd.Series(z)
+#     a = pd.Series(a)
+#     b = pd.Series(b)
+#     c = pd.Series(c)
+# 
+#     row = dict(n=n)
+#     row['concat_whole'] = z.mean()
+#     row['concat_whole_low'] = z.mean() - 2 * z.std()
+#     row['concat_whole_high'] = z.mean() + 2 * z.std()
+#     row['concat2_whole'] = a.mean()
+#     row['concat2_whole_low'] = a.mean() - 2 * a.std()
+#     row['concat2_whole_high'] = a.mean() + 2 * a.std()
+#     row['concat_whole2'] = b.mean()
+#     row['concat_whole2_low'] = b.mean() - 2 * b.std()
+#     row['concat_whole2_high'] = b.mean() + 2 * b.std()
+#     row['concat2_whole2'] = c.mean()
+#     row['concat2_whole2_low'] = c.mean() - 2 * c.std()
+#     row['concat2_whole2_high'] = c.mean() + 2 * c.std()
+# 
+#     output.append(row)
+# 
+#     pb.errput()
+# 
+# 
+# to_graph = pd.DataFrame(output)
+# to_graph.to_csv(sys.stdout, index=False)
+# 
+# 
+# 
+# 
+# 
 
