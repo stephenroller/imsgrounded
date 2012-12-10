@@ -22,22 +22,23 @@ def remove_fakes(data):
 def parse_whole_judgements(file):
     data = pd.read_csv(file, names=('workerId', 'worktime', 'approval', 'compound', 'judgement'))
     # remove everyone who failed our fake word tests
-    data = remove_fakes(data)
-    # only keep people with an approval of at least 90.
-    N = len(data)
-    data.approval = data.approval.map(lambda x: int(x.split()[0]))
-    data = data[data.approval >= 90]
-    sys.stderr.write("Before approval rating: %d\tafter: %d\n" % (N, len(data)))
-    # Now we only want to keep people who made at least 10 judgements
+    #data = remove_fakes(data)
+    ## only keep people with an approval of at least 90.
+    #N = len(data)
+    #data.approval = data.approval.map(lambda x: int(x.split()[0]))
+    #data = data[data.approval >= 90]
+    #sys.stderr.write("Before approval rating: %d\tafter: %d\n" % (N, len(data)))
+    ## Now we only want to keep people who made at least 10 judgements
+    # filter out nonanswers
     user_counts = Counter(data.workerId)
     good_users = set(k for k, v in user_counts.iteritems() if v >= 10)
-    N = len(data)
+    #N = len(data)
     data = data[data.workerId.map(good_users.__contains__)]
-    sys.stderr.write("Before min count: %d\tafter: %d\n" % (N, len(data)))
-
-
-    # filter out nonanswers
+    #sys.stderr.write("Before min count: %d\tafter: %d\n" % (N, len(data)))
     data = data[data.judgement != 8]
+
+
+
     # group into users
     output = data.pivot(index='compound', columns='workerId', values='judgement')
     workers = list(output.columns)

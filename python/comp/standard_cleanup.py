@@ -9,6 +9,10 @@ from scipy.stats import spearmanr
 DEFAULT_MIN_CORR = 0.5
 DEFAULT_ZSCORE = 1.0
 
+def na_spearmanr(a, b): 
+    mask = a.notnull().values & b.notnull().values
+    return spearmanr(a[mask], b[mask])
+
 def remove_most_deviant_subjects(data, n):
     judgement_columns = data.columns[2:]
     agreements = {}
@@ -27,6 +31,20 @@ def remove_most_deviant_subjects(data, n):
         out_data[j] = float('nan')
 
     return out_data
+
+
+def calculate_subject_agreements(data):
+    judgement_columns = data.columns[2:]
+
+    agreements = {}
+    for j in judgement_columns:
+        ratings = data[j]
+        other_subjects = list(set(judgement_columns) - set([j]))
+        exclusive_means = data[other_subjects].transpose().mean()
+        rho, p = na_spearmanr(ratings, exclusive_means)
+        agreements[j] = rho
+
+    return agreements
 
 
 def remove_deviant_subjects(data, min_corr=DEFAULT_MIN_CORR):
