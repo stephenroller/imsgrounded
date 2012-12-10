@@ -164,7 +164,7 @@ def decrange(start, stop, inc):
         x += inc
     return out
 
-def combine_measures(agg_heads_and_mods, method='prod'):
+def combine_measures(agg_heads_and_mods, method='gmean'):
     # returns a new DataFrame that's the exact same format as the whole file
     # method should be either 'sum' or 'prod'.
     grouped = agg_heads_and_mods.groupby('compound')
@@ -172,6 +172,8 @@ def combine_measures(agg_heads_and_mods, method='prod'):
         together = grouped.sum()
     elif method == 'prod':
         together = grouped.prod()
+    elif method == 'gmean':
+        together = grouped.prod().map(sqrt)
     elif method == 'hmean':
         together = 2 * grouped.prod() / grouped.sum()
     else:
