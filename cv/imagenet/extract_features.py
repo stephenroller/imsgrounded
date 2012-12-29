@@ -4,7 +4,7 @@ import sys
 import bz2file
 import tarfile
 import SimpleCV as scv
-import PIL
+import PIL.ImageFile
 import argparse
 import os.path
 from lxml import etree
@@ -41,7 +41,7 @@ def xml_to_objects(node):
 
 def relcrop(img, owidth, oheight, x1, y1, x2, y2):
     if img.width == owidth and img.height == oheight:
-        return img.crop(x, y, w, h)
+        return img.crop(x1, y1, x2 - x1, y2 - y1)
     else:
         ax = round(img.width * float(x1) / owidth)
         ay = round(img.height * float(y1) / oheight)
@@ -69,7 +69,11 @@ def with_boundingboxes(imgid, img, bbox_dir):
 
 
 def extract_surf(scv_img):
-    return (kp.descriptor() for kp in scv_img.findKeypoints(highQuality=True))
+    keypoints = scv_img.findKeypoints(highQuality=True)
+    if keypoints:
+        return (kp.descriptor() for kp in keypoints if kp)
+    else:
+        return []
 
 
 def main():
