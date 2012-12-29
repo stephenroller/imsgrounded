@@ -1,4 +1,4 @@
-#!/usr/bin/env
+#!/usr/bin/env python
 
 import sys
 import bz2file
@@ -8,6 +8,7 @@ import PIL
 import argparse
 import os.path
 from lxml import etree
+from random import random
 
 #from progress import ProgressBar
 
@@ -116,6 +117,8 @@ def main():
             if whitelist and wnid not in whitelist:
                 continue
             for feature in extractor(cimg):
+                if random() > .01:
+                    continue
                 fstr = " ".join(map(repr, feature))
                 ofile.write("%s\t%s\t%s\n" % (wnid, cropid, fstr))
         #ofile.flush()
