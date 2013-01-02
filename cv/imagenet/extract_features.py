@@ -7,6 +7,7 @@ import SimpleCV as scv
 import PIL.ImageFile
 import argparse
 import os.path
+import numpy as np
 from lxml import etree
 from random import random
 
@@ -53,6 +54,8 @@ def relcrop(img, owidth, oheight, x1, y1, x2, y2):
 def with_boundingboxes(imgid, img, bbox_dir):
     wnid, imgnum = imgid.split("_")
     try:
+        if bbox_dir is None:
+            raise IOError, "No bounding box dir."
         f = open(os.path.join(bbox_dir, wnid, imgid + ".xml"))
         bbox_root = etree.parse(f)
         osizes = xml_to_objects(bbox_root.xpath("/annotation/size")[0])
@@ -91,6 +94,10 @@ def main():
                         help='The output file of features.')
     parser.add_argument('--no-bzip2', '-J', action='store_true',
                         help="Don't bzip2 the output.")
+    parser.add_argument('--prob', '-p', default=1.0, type=float, metavar='FLOAT',
+                        help="Sample features with given probability.")
+    parser.add_argument('--clusters', '-c', metavar='FILE',
+                        help="Output features in terms of clusters (BoVW).")
     args = parser.parse_args()
 
     if args.feature == 'surf':
@@ -111,6 +118,13 @@ def main():
     else:
         whitelist = None
 
+    if args.clusters:
+        with open(args.clusters) as clusters_f:
+            clusters_t = [l for l in clusters_f.read().split("\n") if l]
+            clusters = np.array([np.array(map(float, l.split())) for l in clusters_t])
+    else:
+        clusters = None
+
 
     image_files = yield_imagefiles(args.tarball)
     for filename, image_file in image_files:
@@ -120,12 +134,21 @@ def main():
         for wnid, cropid, cimg in cropped_images:
             if whitelist and wnid not in whitelist:
                 continue
+            if clusters is not None:
+                current_bovw = np.array([0] * len(clusters))
             for feature in extractor(cimg):
-                if random() > .01:
+                if random() > args.prob:
                     continue
-                fstr = " ".join(map(repr, feature))
-                ofile.write("%s\t%s\t%s\n" % (wnid, cropid, fstr))
-        #ofile.flush()
+                if clusters is None:
+                    fstr = " ".join(map(repr, feature))
+                    ofile.write("%s\t%s\t%s\n" % (wnid, cropid, fstr))
+                else:
+                    cluster_num = ((clusters - feature) ** 2).sum(axis=1).argmin()
+                    current_bovw[cluster_num] += 1
+
+            if clusters is not None:
+                fstr = " ".join(map(repr, current_bovw))
+                ofile.write("%s\t%s\n" % (cropid, fstr))
 
     ofile.close()
 
