@@ -71,6 +71,15 @@ def with_boundingboxes(imgid, img, bbox_dir):
     except IOError:
         yield wnid, imgid + "_0", img
 
+def extract_hue(scv_img, nbins=179):
+    bins = [0] * nbins
+    for hue, fraction in scv_img.huePeaks(bins=nbins):
+        bins[int(hue)] = fraction
+    yield bins
+
+def extract_intensity(scv_img, nbins=50):
+    arr = np.array(scv_img.histogram(numbins=nbins))
+    yield arr / float(arr.sum())
 
 def extract_surf(scv_img):
     keypoints = scv_img.findKeypoints(highQuality=True)
@@ -84,7 +93,7 @@ def main():
     parser = argparse.ArgumentParser(
                 description='Extracts CV features from a tarball of images.')
     parser.add_argument('--tarball', '-t', metavar="FILE", help='The input tarball of images.')
-    parser.add_argument('--feature', '-f', choices=('surf', 'color'),
+    parser.add_argument('--feature', '-f', choices=('surf', 'hue', 'intensity'),
                         help='The type of features to extract.')
     parser.add_argument('--whitelist', '-w', metavar='FILE',
                         help='A whitelist of ImageNet IDs to accept.')
@@ -102,6 +111,10 @@ def main():
 
     if args.feature == 'surf':
         extractor = extract_surf
+    elif args.feature == 'hue':
+        extractor = extract_hue
+    elif args.feature == 'intensity':
+        extractor = extract_intensity
     else:
         raise NotImplementedError, "Can't extract feature %s yet." % args.feature
 
