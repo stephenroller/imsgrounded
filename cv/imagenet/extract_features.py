@@ -8,16 +8,29 @@ import PIL.ImageFile
 import argparse
 import os.path
 import numpy as np
+from itertools import chain
 from lxml import etree
 from random import random
+from cStringIO import StringIO
 
 #from progress import ProgressBar
 
 
 def yield_imagefiles(tarfilename):
-    tf = tarfile.open(tarfilename)
-    for fn in tf.getnames():
-        yield fn, tf.extractfile(fn)
+    if tarfilename == "-":
+        buffered_file = StringIO(sys.stdin.read())
+        try:
+            files = [z.strip() for z in buffered_file.getvalue().split()]
+            tarfiles = (tarfile.open(f) for f in files)
+            sys.stderr.write("Responsible for: " + repr(files) + "\n")
+            file_readers = ((fn, tf.extractfile(fn)) for tf in tarfiles for fn in tf.getnames())
+            return file_readers
+        except:
+            tf = tarfile.open(fileobj=buffered_file)
+    else:
+        tf = tarfile.open(tarfilename)
+
+    return ((fn, tf.extractfile(fn)) for fn in tf.getnames())
 
 def image_from_imagefile(imgfile):
     parser = PIL.ImageFile.Parser()
@@ -90,14 +103,15 @@ def extract_surf(scv_img):
 def main():
     parser = argparse.ArgumentParser(
                 description='Extracts CV features from a tarball of images.')
-    parser.add_argument('--tarball', '-t', metavar="FILE", help='The input tarball of images.')
+    parser.add_argument('--tarball', '-t', metavar="FILE", 
+                        help='The input tarball of images.', default="-")
     parser.add_argument('--feature', '-f', choices=('surf', 'hue', 'intensity'),
                         help='The type of features to extract.')
     parser.add_argument('--whitelist', '-w', metavar='FILE',
                         help='A whitelist of ImageNet IDs to accept.')
     parser.add_argument('--bbox', '-b', metavar='DIR',
                         help='The directory containing the bounding boxes.')
-    parser.add_argument('--out', '-o', metavar='FILE',
+    parser.add_argument('--out', '-o', metavar='FILE', default="-",
                         help='The output file of features.')
     parser.add_argument('--no-bzip2', '-J', action='store_true',
                         help="Don't bzip2 the output.")
@@ -140,8 +154,9 @@ def main():
     image_files = yield_imagefiles(args.tarball)
     for filename, image_file in image_files:
         img = image_from_imagefile(image_file)
-        imgid = filename[:filename.index('.')-1]
+        imgid = filename[:filename.index('.')]
         cropped_images = with_boundingboxes(imgid, img, args.bbox)
+        sys.stderr.write("Processing '%s' (%s).\n" % (filename, imgid))
         for wnid, cropid, cimg in cropped_images:
             if whitelist and wnid not in whitelist:
                 continue
@@ -159,7 +174,7 @@ def main():
 
             if clusters is not None:
                 fstr = " ".join(map(repr, current_bovw))
-                ofile.write("%s\t%s\n" % (cropid, fstr))
+                ofile.write("%s\t%s\t%s\n" % (wnid, cropid, fstr))
 
     ofile.close()
 
