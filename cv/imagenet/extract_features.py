@@ -71,11 +71,9 @@ def with_boundingboxes(imgid, img, bbox_dir):
     except IOError:
         yield wnid, imgid + "_0", img
 
-def extract_hue(scv_img, nbins=179):
-    bins = [0] * nbins
-    for hue, fraction in scv_img.huePeaks(bins=nbins):
-        bins[int(hue)] = fraction
-    yield bins
+def extract_hue(scv_img, nbins=32):
+    hhfe = scv.HueHistogramFeatureExtractor(nbins)
+    yield hhfe.extract(scv_img)
 
 def extract_intensity(scv_img, nbins=50):
     arr = np.array(scv_img.histogram(numbins=nbins))
