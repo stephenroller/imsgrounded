@@ -15,22 +15,24 @@ from cStringIO import StringIO
 
 #from progress import ProgressBar
 
+def forgiving_taropen(**tar_kw):
+    try:
+        tf = tarfile.open(**tar_kw)
+        return ((fn, tf.extractfile(fn)) for fn in tf.getnames())
+    except Exception, e:
+        sys.stderr.write("ERROR: Couldn't read '%s' due to '''%s'''\n" % (repr(tar_kw), repr(e)))
+        return []
 
 def yield_imagefiles(tarfilename):
     if tarfilename == "-":
         buffered_file = StringIO(sys.stdin.read())
         try:
             files = [z.strip() for z in buffered_file.getvalue().split()]
-            tarfiles = (tarfile.open(f) for f in files)
-            sys.stderr.write("Responsible for: " + repr(files) + "\n")
-            file_readers = ((fn, tf.extractfile(fn)) for tf in tarfiles for fn in tf.getnames())
-            return file_readers
+            return chain(*(forgiving_taropen(name=f) for f in files))
         except:
-            tf = tarfile.open(fileobj=buffered_file)
+            return forgiving_taropen(fileobj=buffered_file)
     else:
-        tf = tarfile.open(tarfilename)
-
-    return ((fn, tf.extractfile(fn)) for fn in tf.getnames())
+        return forgiving_taropen(tarfilename)
 
 def image_from_imagefile(imgfile):
     parser = PIL.ImageFile.Parser()
