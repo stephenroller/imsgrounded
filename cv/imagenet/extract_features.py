@@ -1,3 +1,5 @@
+#!/share/apps/python/epd/7.2.2/bin/python
+
 #!/usr/bin/env python
 
 import sys
@@ -12,13 +14,16 @@ from itertools import chain
 from lxml import etree
 from random import random
 from cStringIO import StringIO
+import _imaging
 
 #from progress import ProgressBar
 
 def forgiving_taropen(**tar_kw):
     try:
-        tf = tarfile.open(**tar_kw)
-        return ((fn, tf.extractfile(fn)) for fn in tf.getnames())
+        tf = tarfile.open(debug=1, **tar_kw)
+        tarinfos = list(tf)
+        sys.stderr.write("Tarfile has %d file in it...\n" %  len(tarinfos))
+        return ((m.name, tf.extractfile(m)) for m in tarinfos if m.isfile())
     except Exception, e:
         sys.stderr.write("ERROR: Couldn't read '%s' due to '''%s'''\n" % (repr(tar_kw), repr(e)))
         return []
@@ -26,16 +31,16 @@ def forgiving_taropen(**tar_kw):
 def yield_imagefiles(tarfilename):
     if tarfilename == "-":
         buffered_file = StringIO(sys.stdin.read())
-        try:
-            files = [z.strip() for z in buffered_file.getvalue().split()]
-            return chain(*(forgiving_taropen(name=f) for f in files))
-        except:
-            return forgiving_taropen(fileobj=buffered_file)
+        sys.stderr.write("Reading tarfile from stdin...(%d bytes)\n" % len(buffered_file.getvalue()))
+        return forgiving_taropen(fileobj=buffered_file)
     else:
-        return forgiving_taropen(tarfilename)
+        return forgiving_taropen(name=tarfilename)
 
 def image_from_imagefile(imgfile):
     parser = PIL.ImageFile.Parser()
+    s = imgfile.read()
+    sys.stderr.write("Read in image: %d bytes\n" % len(s))
+    imgfile.seek(0)
     parser.feed(imgfile.read())
     pilimg = parser.close()
     imgfile.close()
@@ -86,11 +91,11 @@ def with_boundingboxes(imgid, img, bbox_dir):
     except IOError:
         yield wnid, imgid + "_0", img
 
-def extract_hue(scv_img, nbins=32):
+def extract_hue(scv_img, nbins=128):
     hhfe = scv.HueHistogramFeatureExtractor(nbins)
     yield hhfe.extract(scv_img)
 
-def extract_intensity(scv_img, nbins=50):
+def extract_intensity(scv_img, nbins=128):
     arr = np.array(scv_img.histogram(numbins=nbins))
     yield arr / float(arr.sum())
 
@@ -155,10 +160,14 @@ def main():
 
     image_files = yield_imagefiles(args.tarball)
     for filename, image_file in image_files:
-        img = image_from_imagefile(image_file)
         imgid = filename[:filename.index('.')]
-        cropped_images = with_boundingboxes(imgid, img, args.bbox)
         sys.stderr.write("Processing '%s' (%s).\n" % (filename, imgid))
+        try:
+            img = image_from_imagefile(image_file)
+        except IOError:
+            sys.stderr.write("Shit, forced to skip %s.\n" % filename)
+            continue
+        cropped_images = with_boundingboxes(imgid, img, args.bbox)
         for wnid, cropid, cimg in cropped_images:
             if whitelist and wnid not in whitelist:
                 continue
@@ -177,6 +186,7 @@ def main():
             if clusters is not None:
                 fstr = " ".join(map(repr, current_bovw))
                 ofile.write("%s\t%s\t%s\n" % (wnid, cropid, fstr))
+        sys.stderr.write("finished with '%s' (%s).\n" % (filename, imgid))
 
     ofile.close()
 
