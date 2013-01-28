@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from numpy.linalg import svd
 
-from util import read_vector_file
+from util import read_vector_file, openfile
 from matrix import norm2_matrix
 
 
@@ -20,8 +20,8 @@ def main():
                         help='The input association space.')
     args = parser.parse_args()
 
-    lex = norm2_matrix(read_vector_file(args.lexspace))
-    assoc = norm2_matrix(read_vector_file(args.assoc))
+    lex = norm2_matrix(read_vector_file(openfile(args.lexspace)))
+    assoc = norm2_matrix(read_vector_file(openfile(args.assoc)))
     together = pd.concat(lex, assoc, keys=("lex", "assoc"))
 
     org_matrix = together.as_matrix()

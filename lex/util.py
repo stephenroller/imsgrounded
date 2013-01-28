@@ -3,6 +3,8 @@
 import sys
 import logging
 import pandas as pd
+import gzip
+import bz2
 
 from math import sqrt
 

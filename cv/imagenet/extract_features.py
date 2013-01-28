@@ -26,11 +26,7 @@ def forgiving_taropen(**tar_kw):
 def yield_imagefiles(tarfilename):
     if tarfilename == "-":
         buffered_file = StringIO(sys.stdin.read())
-        try:
-            files = [z.strip() for z in buffered_file.getvalue().split()]
-            return chain(*(forgiving_taropen(name=f) for f in files))
-        except:
-            return forgiving_taropen(fileobj=buffered_file)
+        return forgiving_taropen(fileobj=buffered_file)
     else:
         return forgiving_taropen(tarfilename)
 
@@ -178,6 +174,7 @@ def main():
                 fstr = " ".join(map(repr, current_bovw))
                 ofile.write("%s\t%s\t%s\n" % (wnid, cropid, fstr))
 
+    ofile.flush()
     ofile.close()
 
 
