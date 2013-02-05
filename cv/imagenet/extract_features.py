@@ -97,19 +97,44 @@ def extract_intensity(scv_img, nbins=128):
     yield arr / float(arr.sum())
 
 def extract_surf(scv_img):
-    keypoints = scv_img.findKeypoints(highQuality=True)
+    iw, ih = float(scv_img.width), float(scv_img.height)
+    try:
+        keypoints = scv_img.findKeypoints(highQuality=True, flavor='SURF')
+    except TypeError:
+        return []
     if keypoints:
-        return (kp.descriptor() for kp in keypoints if kp)
+        return (((kp.x / iw, kp.y / ih), kp.descriptor()) for kp in keypoints if kp)
     else:
         return []
 
+def extract_xyz(scv_img, nbins=128):
+    xyz = scv_img.toXYZ()
+    mat = xyz.getNumpy()
+    x = np.histogram(mat[:,:,0], normed=True, bins=nbins, range=(0, 255))[0]
+    y = np.histogram(mat[:,:,0], normed=True, bins=nbins, range=(0, 255))[0]
+    z = np.histogram(mat[:,:,0], normed=True, bins=nbins, range=(0, 255))[0]
+    return [np.array([x, y, z]).flatten()]
+
+
+def extract_sift(scv_img):
+    iw, ih = float(scv_img.width), float(scv_img.height)
+    try:
+        keypoints = scv_img.findKeypoints(flavor='SIFT')
+    except TypeError:
+        return []
+    if keypoints:
+        return (((kp.x / iw, kp.y / ih), kp.descriptor()) for kp in keypoints if kp)
+    else:
+        return []
+
+COORD_FEATS = ('surf', 'sift')
 
 def main():
     parser = argparse.ArgumentParser(
                 description='Extracts CV features from a tarball of images.')
     parser.add_argument('--tarball', '-t', metavar="FILE", 
                         help='The input tarball of images.', default="-")
-    parser.add_argument('--feature', '-f', choices=('surf', 'hue', 'intensity'),
+    parser.add_argument('--feature', '-f', choices=('surf', 'hue', 'intensity', 'sift', 'xyz'),
                         help='The type of features to extract.')
     parser.add_argument('--whitelist', '-w', metavar='FILE',
                         help='A whitelist of ImageNet IDs to accept.')
@@ -129,8 +154,12 @@ def main():
         extractor = extract_surf
     elif args.feature == 'hue':
         extractor = extract_hue
+    elif args.feature == 'xyz':
+        extractor = extract_xyz
     elif args.feature == 'intensity':
         extractor = extract_intensity
+    elif args.feature == 'sift':
+        extractor = extract_sift
     else:
         raise NotImplementedError, "Can't extract feature %s yet." % args.feature
 
@@ -171,11 +200,18 @@ def main():
             if clusters is not None:
                 current_bovw = np.array([0] * len(clusters))
             for feature in extractor(cimg):
+                if args.feature in COORD_FEATS:
+                    ((xp, yp), feature) = feature
+
                 if random() > args.prob:
                     continue
+
                 if clusters is None:
                     fstr = " ".join(map(repr, feature))
-                    ofile.write("%s\t%s\t%s\n" % (wnid, cropid, fstr))
+                    if args.feature in COORD_FEATS:
+                        ofile.write("%s\t%s\t%f,%f\t%s\n" % (wnid, cropid, xp, yp, fstr))
+                    else:
+                        ofile.write("%s\t%s\t%s\n" % (wnid, cropid, fstr))
                 else:
                     cluster_num = ((clusters - feature) ** 2).sum(axis=1).argmin()
                     current_bovw[cluster_num] += 1
