@@ -1,5 +1,3 @@
-#!/share/apps/python/epd/7.2.2/bin/python
-
 #!/usr/bin/env python
 
 import sys
@@ -14,7 +12,6 @@ from itertools import chain
 from lxml import etree
 from random import random
 from cStringIO import StringIO
-import _imaging
 
 #from progress import ProgressBar
 
