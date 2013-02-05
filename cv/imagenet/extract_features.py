@@ -19,7 +19,7 @@ def forgiving_taropen(**tar_kw):
     try:
         tf = tarfile.open(debug=1, **tar_kw)
         tarinfos = list(tf)
-        sys.stderr.write("Tarfile has %d file in it...\n" %  len(tarinfos))
+        #sys.stderr.write("Tarfile has %d file in it...\n" %  len(tarinfos))
         return ((m.name, tf.extractfile(m)) for m in tarinfos if m.isfile())
     except Exception, e:
         sys.stderr.write("ERROR: Couldn't read '%s' due to '''%s'''\n" % (repr(tar_kw), repr(e)))
@@ -28,7 +28,7 @@ def forgiving_taropen(**tar_kw):
 def yield_imagefiles(tarfilename):
     if tarfilename == "-":
         buffered_file = StringIO(sys.stdin.read())
-        sys.stderr.write("Reading tarfile from stdin...(%d bytes)\n" % len(buffered_file.getvalue()))
+        #sys.stderr.write("Reading tarfile from stdin...(%d bytes)\n" % len(buffered_file.getvalue()))
         return forgiving_taropen(fileobj=buffered_file)
     else:
         return forgiving_taropen(name=tarfilename)
@@ -36,7 +36,7 @@ def yield_imagefiles(tarfilename):
 def image_from_imagefile(imgfile):
     parser = PIL.ImageFile.Parser()
     s = imgfile.read()
-    sys.stderr.write("Read in image: %d bytes\n" % len(s))
+    #sys.stderr.write("Read in image: %d bytes\n" % len(s))
     imgfile.seek(0)
     parser.feed(imgfile.read())
     pilimg = parser.close()
@@ -158,11 +158,11 @@ def main():
     image_files = yield_imagefiles(args.tarball)
     for filename, image_file in image_files:
         imgid = filename[:filename.index('.')]
-        sys.stderr.write("Processing '%s' (%s).\n" % (filename, imgid))
+        #sys.stderr.write("Processing '%s' (%s).\n" % (filename, imgid))
         try:
             img = image_from_imagefile(image_file)
-        except IOError:
-            sys.stderr.write("Shit, forced to skip %s.\n" % filename)
+        except IOError, ioerr:
+            #sys.stderr.write("Shit, forced to skip %s (%s).\n" % (filename, ioerr))
             continue
         cropped_images = with_boundingboxes(imgid, img, args.bbox)
         for wnid, cropid, cimg in cropped_images:
@@ -183,7 +183,7 @@ def main():
             if clusters is not None:
                 fstr = " ".join(map(repr, current_bovw))
                 ofile.write("%s\t%s\t%s\n" % (wnid, cropid, fstr))
-        sys.stderr.write("finished with '%s' (%s).\n" % (filename, imgid))
+        #sys.stderr.write("finished with '%s' (%s).\n" % (filename, imgid))
 
     ofile.flush()
     ofile.close()
