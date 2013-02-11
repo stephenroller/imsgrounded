@@ -49,6 +49,21 @@ def join_vectors(vectors, norm=True):
 def cosine(v1, v2):
     return v1.dot(v2) / sqrt(v1.dot(v1) * v2.dot(v2))
 
+def lmi(space):
+    M = np.matrix(list(space.vector))
+    tt = M.sum()
+    py = sum(M) / tt
+    px = sum(M.T).T / tt
+    pxy = M / float(tt)
+    pxpy = np.dot(px, py)
+    pmi = np.log2(pxy) - np.log2(pxpy)
+    lmi = np.multiply(pxy, pmi)
+    nnlmi = lmi.copy()
+    nnlmi[nnlmi < 0] = 0
+    nnlmi[np.isnan(nnlmi)] = 0
+    vectors_lmied = pd.DataFrame({'word': space.word, 'vector': map(np.array, nnlmi.tolist())})
+    return vectors_lmied
+
 def perform_svd(space):
     M = np.matrix(list(space.vector))
     U, S, V = np.linalg.svd(M, full_matrices=False)
@@ -80,6 +95,7 @@ def all_params(vectors):
     print "  Basic Concat (With all pairs):"
     print "    Number pairs compared:", n
     print "    rho =", rho, "   p =", p
+
     return
 
     U, S, V = perform_svd(vectors)
@@ -96,7 +112,7 @@ all_keepwords = reduce(set.intersection, (set(spaces[c].keys()) for c in spaces.
 
 for combination in combinations(spaces.keys()):
     print "+".join(list(combination)) + ":"
-    keepwords = reduce(set.intersection, (set(spaces[c].keys()) for c in combination))
+    keepwords = sorted(reduce(set.intersection, (set(spaces[c].keys()) for c in combination)))
     vectors = pd.DataFrame([{'word': w, 'vector':  join_vectors([spaces[c][w] for c in combination]) } for w in keepwords])
     if keepwords != all_keepwords:
         print "(Only comparable pairs)"
@@ -105,6 +121,13 @@ for combination in combinations(spaces.keys()):
     else:
         print "(All Pairs)"
         all_params(vectors)
+
+    lmi_vectors = [lmi(pd.DataFrame([{'word': w, 'vector':  spaces[c][w]}  for w in keepwords]))
+                    for c in combination]
+    zipped_vectors = zip(*[sp.vector for sp in lmi_vectors])
+    joined_lmi = pd.DataFrame([{'word': w, 'vector': join_vectors(zv)} for w, zv in zip(keepwords, zipped_vectors)])
+    print "LMI:"
+    all_params(joined_lmi)
 
     if False and len(combination) == 2:
         # sweet, we can do CCA:

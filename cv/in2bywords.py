@@ -23,6 +23,7 @@ extender = pd.read_table(os.path.join(storedir, "images/imagenet_hypos.txt"), he
 remapped = remapped.merge(extender)
 
 def norm1(v):
+    return v
     return v / float(sum(v))
 
 parsed = vectors.Vector.map(lambda x: norm1(np.array(map(float, x.split(" ")))))
