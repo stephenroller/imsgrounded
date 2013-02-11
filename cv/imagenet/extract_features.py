@@ -12,6 +12,7 @@ from itertools import chain
 from lxml import etree
 from random import random
 from cStringIO import StringIO
+import math
 
 #from progress import ProgressBar
 
