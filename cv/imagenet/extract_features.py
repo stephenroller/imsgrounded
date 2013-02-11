@@ -128,6 +128,7 @@ def extract_sift(scv_img):
         return []
 
 COORD_FEATS = ('surf', 'sift')
+SPATIAL = 4
 
 def main():
     parser = argparse.ArgumentParser(
@@ -198,7 +199,7 @@ def main():
             if whitelist and wnid not in whitelist:
                 continue
             if clusters is not None:
-                current_bovw = np.array([0] * len(clusters))
+                current_bovw = np.array([0] * len(clusters) * SPATIAL * SPATIAL)
             for feature in extractor(cimg):
                 if args.feature in COORD_FEATS:
                     ((xp, yp), feature) = feature
@@ -213,8 +214,9 @@ def main():
                     else:
                         ofile.write("%s\t%s\t%s\n" % (wnid, cropid, fstr))
                 else:
+                    offset = len(clusters) * (math.floor(xp * SPATIAL) * SPATIAL + math.floor(xy * spatial))
                     cluster_num = ((clusters - feature) ** 2).sum(axis=1).argmin()
-                    current_bovw[cluster_num] += 1
+                    current_bovw[cluster_num + offset] += 1
 
             if clusters is not None:
                 fstr = " ".join(map(repr, current_bovw))
