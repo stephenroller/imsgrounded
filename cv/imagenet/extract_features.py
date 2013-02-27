@@ -204,6 +204,8 @@ def main():
             for feature in extractor(cimg):
                 if args.feature in COORD_FEATS:
                     ((xp, yp), feature) = feature
+                else:
+                    xp, yp = 0.0, 0.0
 
                 if random() > args.prob:
                     continue
@@ -215,7 +217,7 @@ def main():
                     else:
                         ofile.write("%s\t%s\t%s\n" % (wnid, cropid, fstr))
                 else:
-                    offset = len(clusters) * (math.floor(xp * SPATIAL) * SPATIAL + math.floor(xy * spatial))
+                    offset = len(clusters) * (math.floor(xp * SPATIAL) * SPATIAL + math.floor(yp * SPATIAL))
                     cluster_num = ((clusters - feature) ** 2).sum(axis=1).argmin()
                     current_bovw[cluster_num + offset] += 1
 
