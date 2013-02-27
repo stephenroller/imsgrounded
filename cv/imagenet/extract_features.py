@@ -112,8 +112,8 @@ def extract_xyz(scv_img, nbins=128):
     xyz = scv_img.toXYZ()
     mat = xyz.getNumpy()
     x = np.histogram(mat[:,:,0], normed=True, bins=nbins, range=(0, 255))[0]
-    y = np.histogram(mat[:,:,0], normed=True, bins=nbins, range=(0, 255))[0]
-    z = np.histogram(mat[:,:,0], normed=True, bins=nbins, range=(0, 255))[0]
+    y = np.histogram(mat[:,:,1], normed=True, bins=nbins, range=(0, 255))[0]
+    z = np.histogram(mat[:,:,2], normed=True, bins=nbins, range=(0, 255))[0]
     return [np.array([x, y, z]).flatten()]
 
 
