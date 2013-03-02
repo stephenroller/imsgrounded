@@ -13,6 +13,7 @@ from lxml import etree
 from random import random
 from cStringIO import StringIO
 import math
+import leargist
 
 #from progress import ProgressBar
 
@@ -116,7 +117,6 @@ def extract_xyz(scv_img, nbins=128):
     z = np.histogram(mat[:,:,2], normed=True, bins=nbins, range=(0, 255))[0]
     return [np.array([x, y, z]).flatten()]
 
-
 def extract_sift(scv_img):
     iw, ih = float(scv_img.width), float(scv_img.height)
     try:
@@ -128,15 +128,27 @@ def extract_sift(scv_img):
     else:
         return []
 
+def extract_gist(scv_img):
+    return [leargist.color_gist_scv(scv_img)]
+
 COORD_FEATS = ('surf', 'sift')
 SPATIAL = 4
+
+FEATURE_FUNCTIONS = {
+    'hue': extract_hue,
+    'xyz': extract_xyz,
+    'surf': extract_surf,
+    'sift': extract_sift,
+    'intensity': extract_intensity,
+    'gist': extract_gist,
+}
 
 def main():
     parser = argparse.ArgumentParser(
                 description='Extracts CV features from a tarball of images.')
     parser.add_argument('--tarball', '-t', metavar="FILE", 
                         help='The input tarball of images.', default="-")
-    parser.add_argument('--feature', '-f', choices=('surf', 'hue', 'intensity', 'sift', 'xyz'),
+    parser.add_argument('--feature', '-f', choices=FEATURE_FUNCTIONS.keys(),
                         help='The type of features to extract.')
     parser.add_argument('--whitelist', '-w', metavar='FILE',
                         help='A whitelist of ImageNet IDs to accept.')
@@ -152,16 +164,8 @@ def main():
                         help="Output features in terms of clusters (BoVW).")
     args = parser.parse_args()
 
-    if args.feature == 'surf':
-        extractor = extract_surf
-    elif args.feature == 'hue':
-        extractor = extract_hue
-    elif args.feature == 'xyz':
-        extractor = extract_xyz
-    elif args.feature == 'intensity':
-        extractor = extract_intensity
-    elif args.feature == 'sift':
-        extractor = extract_sift
+    if args.feature in FEATURE_FUNCTIONS:
+        extractor = FEATURE_FUNCTIONS[args.feature]
     else:
         raise NotImplementedError, "Can't extract feature %s yet." % args.feature
 
