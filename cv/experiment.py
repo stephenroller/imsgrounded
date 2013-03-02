@@ -12,6 +12,7 @@ from itertools import combinations as icombinations
 from itertools import chain
 from functools import partial
 from math import sqrt
+import bz2
 
 from apgl.features.KernelCCA import KernelCCA
 from apgl.kernel.LinearKernel import LinearKernel
@@ -25,7 +26,10 @@ def parse_vector(v):
     return np.array(map(float, v.split(" ")))
 
 def read_space(filename):
-    f = open(filename)
+    if filename.endswith(".bz2"):
+        f = bz2.BZ2File(filename)
+    else:
+        f = open(filename)
     data = {}
     for line in f:
         line = line.strip()
@@ -122,6 +126,7 @@ for combination in combinations(spaces.keys()):
         print "(All Pairs)"
         all_params(vectors)
 
+    continue
     lmi_vectors = [lmi(pd.DataFrame([{'word': w, 'vector':  spaces[c][w]}  for w in keepwords]))
                     for c in combination]
     zipped_vectors = zip(*[sp.vector for sp in lmi_vectors])

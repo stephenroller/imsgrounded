@@ -1,0 +1,3 @@
+[submodule "cv/pyleargist"]
+	path = cv/pyleargist
+	url = git@github.com:stephenroller/pyleargist.git
