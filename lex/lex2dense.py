@@ -12,10 +12,12 @@ cols = set()
 tars = set()
 for line in f:
     t, c, v = line.strip().split("\t")
-    t = remove_pos(t)
+    t, pos = extract_word_pos(t)
+    if pos != 'NN':
+        continue
     if t not in data:
         data[t] = {}
-    assert c not in data[t]
+    assert c not in data[t], "already found context %s for target %s" % (c, t)
     data[t][c] = v
     cols.add(c)
     tars.add(t)

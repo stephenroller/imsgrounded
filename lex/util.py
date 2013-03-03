@@ -40,6 +40,14 @@ def remove_pos(word):
     except ValueError:
         return word
 
+def extract_word_pos(word):
+    try:
+        splt = word.rindex('/')
+        return word[:splt], word[splt+1:]
+    except ValueError:
+        return word, ''
+
+
 def normalize(word):
     return word
 
