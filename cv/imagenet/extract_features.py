@@ -128,8 +128,8 @@ def extract_sift(scv_img):
     else:
         return []
 
-def extract_gist(scv_img):
-    return [leargist.color_gist_scv(scv_img)]
+def extract_gist(scv_img, size=128):
+    return [leargist.color_gist_scv(scv_img.resize(size, size))]
 
 COORD_FEATS = ('surf', 'sift')
 SPATIAL = 4
