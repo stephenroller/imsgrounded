@@ -27,10 +27,13 @@ class freyr:
         self.pi=clip(dirichletrnd(self.theta,self.J))
 
         self.phiprior = dirichlet()
+        self.phiprior.m = 1.0/self.V
         self.psiprior = dirichlet()
+        self.psiprior.m = 1.0/self.F
         self.piprior = dirichlet()
+        self.piprior.m=1.0/self.K
 
-        self.mcmc_iteration_max=1e+3
+        self.mcmc_iteration_max=1e+4
         self.verbose=0
 
     def mcmc(self):
@@ -59,21 +62,18 @@ class freyr:
     def beta_a_mle(self):
         self.phiprior.observation(self.phi)
         self.phiprior.a=self.beta.sum()
-        self.phiprior.m=np.ones(self.V)/self.V
         self.phiprior.a_update()
         self.beta=self.phiprior.a*self.phiprior.m
 
     def theta_a_mle(self):
         self.piprior.observation(self.pi)
-        self.piprior.a=self.theta.sum()
-        self.piprior.m=np.ones(self.K)/self.K
+        self.piprior.a=np.sum(self.theta)
         self.piprior.a_update()
         self.theta=self.piprior.a*self.piprior.m
 
     def gamma_a_mle(self):
         self.psiprior.observation(self.psi)
-        self.psiprior.a=self.gamma.sum()
-        self.psiprior.m=np.ones(self.F)/self.F
+        self.psiprior.a = self.gamma.sum()
         self.psiprior.a_update()
         self.gamma=self.psiprior.a*self.psiprior.m
 
@@ -120,27 +120,20 @@ class dirichlet:
         self.J=data.shape[0]
         self.K=data.shape[1]
         self.logdatamean=np.log(self.data).mean(axis=0)
+        self.logdatamean_sum = np.sum(self.logdatamean)
 
     def initialize(self):
         self.a, self.m = moment_match(self.data)
 
-    def loglikelihood_gradient(self):
-        return self.J*(xmod.digamma(self.a)-xmod.vdigamma(self.a*self.m)  + self.logdatamean)
-
-    def loglikelihood(self):
-        return self.J*(Sp.gammaln(self.a)-Sp.gammaln(self.a*self.m).sum()+np.dot(self.a*self.m-1,self.logdatamean))
-
     def a_new(self):
-        if self.a == 0:
-            self.a = 1e-9
-        #print "%.15f, %.15f" % (self.a, xmod.digamma(self.a))
+        if self.a < 1e-308:
+            self.a = 1e-308
         am = self.a * self.m
-        d1=self.J*(xmod.digamma(self.a) - np.dot(self.m,xmod.vdigamma(am)) + np.dot(self.m,self.logdatamean))
-        d2=self.J*(xmod.trigamma(self.a) - np.dot(self.m**2,xmod.vtrigamma(am)))
-        #self.a = (1/self.a+(self.a**2)*d1/d2)**-1
+        d1=self.J*(xmod.digamma(self.a) - self.m * xmod.digamma(am) + self.m * self.logdatamean_sum)
+        d2=self.J*(xmod.trigamma(self.a) - np.square(self.m) * xmod.trigamma(am))
         self.a = np.reciprocal(np.reciprocal(self.a)+(d1/d2)*np.square(self.a))
-        if self.a < 0:
-            self.a = 1e-9
+        if self.a < 1e-308:
+            self.a = 1e-308
 
     def a_update(self):
         a_old=self.a
@@ -173,7 +166,7 @@ def dirichletrnd(a,J):
     return (g.T/np.sum(g,1)).T
 
 def dirichletrnd_array(a):
-    g = np.random.gamma(a) + 1e-10
+    g = np.random.gamma(a + 1e-9) + 1e-10
     return (g.T/np.sum(g,1)).T
 
 # IO Stuff
