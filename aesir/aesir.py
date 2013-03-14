@@ -145,11 +145,6 @@ class dirichlet:
         d2=self.J*(psi(self.a,1) - np.dot(self.m**2,psi(self.a*self.m,1)));
         self.a= (1/self.a+d1/d2/self.a**2)**-1
 
-    def m_new(self):
-        digamma_am= self.logdatamean-np.dot(self.m,self.logdatamean-psi(self.a*self.m))
-        am=inv_digamma(digamma_am)
-        self.m=am/np.sum(am)
-
     def a_update(self):
         a_old=self.a
         self.a_new()
@@ -159,58 +154,6 @@ class dirichlet:
         while (abs(a_old-self.a)>self.iteration_eps) and iteration<self.iteration_max:
             a_old=self.a
             self.a_new()
-            iteration+=1
-
-    def m_update(self):
-        m_old=self.m
-        self.m_new()
-
-        iteration=0
-
-        while (abs(m_old-self.m).max()>self.iteration_eps) and iteration<self.iteration_max:
-            m_old=self.m
-            self.m_new()
-            iteration+=1
-
-    def mle(self):
-        am_old=self.a*self.m
-        self.a_update()
-        self.m_update()
-
-        iteration=0
-        #print self.loglikelihood()
-
-        while (abs(am_old-self.m*self.a).max()>self.iteration_eps) and iteration<self.iteration_max:
-            am_old=self.a*self.m
-            self.a_update()
-            self.m_update()
-            iteration+=1
-            #print self.loglikelihood()
-
-    def mcmc(self,mcmc_iteration_max=100):
-        theta_current=self.a*self.m
-        ll_current=self.loglikelihood()
-        self.ll=zeros(mcmc_iteration_max)
-        self.switch=zeros(mcmc_iteration_max)
-        self.Theta=zeros((mcmc_iteration_max,self.K))
-
-        iteration=0
-
-        while iteration<mcmc_iteration_max:
-            theta_proposed=theta_current*(1+np.random.uniform(-self.mcmc_stepsize,self.mcmc_stepsize,self.K))
-
-            self.a=theta_proposed.sum()
-            self.m=theta_proposed/self.a
-            ll_proposed=self.loglikelihood()
-
-            if exp(ll_proposed-ll_current)>np.random.rand():
-                ll_current=ll_proposed
-                self.switch[iteration]=1
-                theta_current=theta_proposed
-
-            self.ll[iteration]=ll_current
-            self.Theta[iteration]=theta_current
-
             iteration+=1
 
 
@@ -227,57 +170,14 @@ def doccounts(wordnumcol):
     counts.append(count)
     return np.array(counts, float)
 
-def norm(x):
-    return sqrt(np.sum(x**2))
-
-def vdiff(n,p):
-    return norm(n - p) / norm(n)
-
-def slice_array_by_cols(p,ind):
-    return np.ascontiguousarray(p[:,ind])
-
-def logsumexp(A,axis_n=1):
-    """ logsumexp - summing along rows """
-    if A.ndim==1:
-        M=A.max()
-        return M+np.log(exp((A.T-M).T).sum())
-    elif axis_n==1:
-        M=A.max(axis=1)
-        return M+np.log(exp((A.T-M).T).sum(axis=1))
-    else:
-        M=A.max(axis=0)
-        return M+np.log(exp(A-M).sum(axis=0))
-
 # some random number generators
 def dirichletrnd(a,J):
     g=np.random.gamma(a,size=(J,np.shape(a)[0]))
     return (g.T/np.sum(g,1)).T
 
-def multinomialrnd(p,n):
-    return argmax(np.random.uniform(0,1,(n,1))  <tile(cumsum(p),(n,1)),axis=1)
-
-def multinomialrnd_array(p,N=1):
-    """ Each row of p is a probability distribution. Draw single sample from each."""
-    return argmax(np.random.uniform(0,1,(np.shape(p)[0],1))  <cumsum(p,1),1)
-
 def dirichletrnd_array(a):
     g=np.random.gamma(a)
     return (g.T/np.sum(g,1)).T
-
-def betarnd_array(a,b):
-    a_sample=np.random.gamma(a)
-    b_sample=np.random.gamma(b)
-    return a_sample/(a_sample+b_sample)
-
-def moment_match(data):
-    """ Approximate the mean (m)  and precision (a)  of dirichlet distribution
-    by moment matching.
-    m is mean(data,0)
-    a is given by Ronning (1989) formula
-    """
-    m=data.mean(axis=0)
-    s=np.log(m*(1-m)/var(data,0)-1).sum()
-    return exp(s/(data.shape[1]-1)),m
 
 def psi(x,d=0):
     if type(x)==np.ndarray:
@@ -293,16 +193,6 @@ def psi(x,d=0):
     #elif type(x)==int or type(x)==float:
     else:
         return Sp.polygamma(d,x)
-
-def inv_digamma(y,niter=5):
-    x = exp(y)+1/2.0;
-    Ind=(y<=-2.22).nonzero()
-    x[Ind] = -1/(y[Ind] - psi(1));
-
-    for iter in xrange(niter):
-          x = x - (psi(x)-y)/psi(x,1);
-
-    return x
 
 # IO Stuff
 def itersplit(s, sub):
