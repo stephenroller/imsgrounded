@@ -44,6 +44,9 @@ def combinations(lst):
 def norm2(vector):
     return vector / sqrt(vector.dot(vector))
 
+def norm1(vector):
+    return vector / sum(vector)
+
 def join_vectors(vectors, norm=True):
     if norm:
         vectors = (norm2(v) for v in vectors)
@@ -52,6 +55,11 @@ def join_vectors(vectors, norm=True):
 
 def cosine(v1, v2):
     return v1.dot(v2) / sqrt(v1.dot(v1) * v2.dot(v2))
+
+def euclid(v1, v2):
+    d = v1 - v2
+    return sqrt(d.dot(d))
+
 
 def lmi(space):
     M = np.matrix(list(space.vector))
