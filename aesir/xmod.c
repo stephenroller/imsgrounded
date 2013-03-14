@@ -147,18 +147,9 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
       return NULL;
   }
 
-  int dims_Rphi[2];
-  int dims_Rpsi[2];
-  int dims_S[2];
-
-  dims_Rphi[0] = K;
-  dims_Rphi[1] = D;
-
-  dims_Rpsi[0] = K;
-  dims_Rpsi[1] = F;
-
-  dims_S[0] = J;
-  dims_S[1] = K;
+  int dims_Rphi[2] = {K, D};
+  int dims_Rpsi[2] = {K, F};
+  int dims_S[2] = {J, K};
 
   double Z = 0;
 
@@ -170,6 +161,7 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   gsl_rng_set(random_number_generator,time(NULL));
 
   double f_array[K];
+  double sz_array[K];
 
   for (i=0; i<Nj; i++) {
     // vocab item
@@ -195,19 +187,18 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
       lastf = f;
 
       z = lnsumexp(f_array, K);
+      s = 0;
+      for (k = 0; k<K; k++) {
+        s += exp(f_array[k] - z);
+        sz_array[k] = s;
+      }
     }
 
     Z += z;
 
     rand_x = gsl_rng_uniform(random_number_generator);
-    s = exp(f_array[0] - z);
-
-    k = 0;
     /* sample from exp(f_array[0]-z) */
-    while ((rand_x >= s) && (k < K)) {
-      k++;
-      s += exp(f_array[k] - z);
-    }
+    for (k=0; k < K && rand_x >= sz_array[k]; k++);
 
     *((int *)(Rphi_array->data + k*Rphi_array->strides[0] + v*Rphi_array->strides[1] ))+=1;
     *((int *)(Rpsi_array->data + k*Rpsi_array->strides[0] + f*Rpsi_array->strides[1] ))+=1;
