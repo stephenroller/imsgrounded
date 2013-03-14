@@ -159,69 +159,6 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
 }
 
 
-static PyObject *xposterior(PyObject *self, PyObject *args) {
-  PyArrayObject *phi_array,*pi_array,*data_array,*f_array,*p_array,*x_array;
-  int Nj,K,i,k,dims[1],dims_data[1],dims_kslice[1],v,g;
-  double rand_x,s,z;
-
-  if (!PyArg_ParseTuple(args, "O!O!O!ii",
-    &PyArray_Type, &phi_array,
-    &PyArray_Type, &pi_array,
-    &PyArray_Type, &data_array,
-    &Nj,
-    &K)) {
-      return NULL;
-  }
-
-  /* create a random number generator object */
-  gsl_rng *r = gsl_rng_alloc (gsl_rng_mt19937);
-
-  /* seed the random number generator*/
-  gsl_rng_set(r,time(NULL));
-
-  dims_data[0]=Nj;
-  dims_kslice[0]=K;
-
-  x_array =(PyArrayObject *) PyArray_FromDims(1,dims_data,NPY_INT);
-  f_array =(PyArrayObject *) PyArray_FromDims(1,dims_kslice,NPY_DOUBLE);
-  p_array =(PyArrayObject *) PyArray_FromDims(1,dims_kslice,NPY_DOUBLE);
-
-  for (i=0; i<Nj; i++) {
-    v=*((int *)(data_array->data + 2*data_array->strides[0] + i*data_array->strides[1]  ));
-    g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]  ));
-    for (k=0;k<K;k++) {
-      // wtf? this looks like there shouldn't be a semicolon here. the second log
-      // will just get optimized out. it does nothing!
-      *((double *)(f_array->data + k*f_array->strides[0])) =
-      log( *((double *)(phi_array->data + k*phi_array->strides[0] + v*phi_array->strides[1])));
-      +log( *((double *)(pi_array->data + g*pi_array->strides[0] + k*pi_array->strides[1])));
-    }
-
-    z = logsumexp(f_array);
-
-    for (k=0; k<K; k++) {
-      *((double *)(p_array->data + k*p_array->strides[0])) =
-        exp(*((double *)(f_array->data + k*f_array->strides[0])) - z);
-    }
-
-    rand_x=gsl_rng_uniform(r);
-    s=*(double *)(p_array->data);
-
-    k=0;
-    while ((rand_x>=s) && (k<K)) {
-      k++;
-      s+=*(double *)(p_array->data + k*p_array->strides[0]);
-    }
-
-    *((int *)(x_array->data + i*x_array->strides[0] )) = k;
-  }
-
-  return PyArray_Return(p_array);
-  /* free up the object */
-  gsl_rng_free(r);
-}
-
-
 static PyObject *indsum(PyObject *self, PyObject *args) {
   PyArrayObject *parray, *iarray, *sarray;
   int i,n,N,dims[2];
@@ -293,7 +230,6 @@ static PyObject *indsum(PyObject *self, PyObject *args) {
 
 static PyMethodDef xmod_methods[] = {
   {"indsum",indsum, METH_VARARGS},
-  {"xposterior",xposterior,METH_VARARGS},
   {"xfactorialposterior",xfactorialposterior,METH_VARARGS},
   {NULL, NULL}     /* required ending of the method table */
 };
