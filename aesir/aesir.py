@@ -29,9 +29,7 @@ class freyr:
         self.psiprior=dirichlet()
         self.piprior=dirichlet()
 
-        self.init_iteration_max=1e+2
-        self.mcmc_iteration_max=1e+3
-        self.iteration_eps=1e-5
+        self.mcmc_iteration_max=1e+4
         self.verbose=0
 
     def mcmc(self):
