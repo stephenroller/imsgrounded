@@ -112,10 +112,8 @@ class freyr:
 class dirichlet:
     def __init__(self,K=10):
         self.K=K
-        self.iteration_eps=1e-5
-        self.iteration_max=10
-        self.mcmc_stepsize=1e-1
-        self.mcmc_iteration_max=25
+        self.iteration_eps=1e-4
+        self.iteration_max=5
 
     def observation(self,data):
         self.data=clip(data)
