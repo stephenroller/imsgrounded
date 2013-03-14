@@ -129,9 +129,9 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
 
     for (k=0;k<K;k++) {
       f_array[k] =
-          log(*((double *)(phi_array->data + k*phi_array->strides[0] + v*phi_array->strides[1])))
-          + log(*((double *)(psi_array->data + k*psi_array->strides[0] + f*psi_array->strides[1])))
-          + log(*((double *)(pi_array->data + g*pi_array->strides[0] + k*pi_array->strides[1])));
+          log(*((double *)(phi_array->data + k*phi_array->strides[0] + v*phi_array->strides[1]))) +
+          log(*((double *)(psi_array->data + k*psi_array->strides[0] + f*psi_array->strides[1]))) +
+          log(*((double *)(pi_array->data +  g*pi_array->strides[0] +  k*pi_array->strides[1])));
     }
 
     z=lnsumexp(f_array,K);
