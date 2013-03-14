@@ -10,40 +10,24 @@
 /* create a random number generator object */
 gsl_rng *random_number_generator;
 
-double max(PyArrayObject *array) {
-  int m,x;
-  int i,n;
-
-  n=array->dimensions[0];
-  m = *(((int *)array->data));
-  for (i = 1; i < n; i++) {
-    x= *((int *)(array->data + i*array->strides[0] ));
-    if (x > m) { m=x; }
-  }
-  return m;
-}
-
 double lnsumexp(double xarray[], int n){
   int i;
-  double x,m,y,z;
+  double x,m,y;
 
-  m=xarray[0];
-  for (i=1;i<n;i++) {
-    if (xarray[i]>m) {
+  m = xarray[0];
+  for (i=1; i<n; i++) {
+    if (xarray[i] > m)
       m = xarray[i];
-    }
   }
 
   /* add up the exp of every element minux max */
-  y=0;
-  for (i=0;i<n;i++) {
-    y += exp(xarray[i]-m);
+  y = 0;
+  for (i=0; i<n; i++) {
+    y += exp(xarray[i] - m);
   }
 
   /* return max + log(sum(exp((x-max(x))))) */
-  z= m + log(y);
-
-  return z;
+  return m + log(y);
 }
 
 static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
@@ -92,14 +76,13 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   gsl_rng_set(random_number_generator,time(NULL));
 
   double f_array[K];
-  double p_array[K];
 
-  for (i=0;i<Nj;i++) {
+  for (i=0; i<Nj; i++) {
     v=*((int *)(data_array->data + 1*data_array->strides[0] + i*data_array->strides[1]));
     f=*((int *)(data_array->data + 2*data_array->strides[0] + i*data_array->strides[1]));
     g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]));
 
-    for (k=0;k<K;k++) {
+    for (k=0; k<K; k++) {
       f_array[k] =
           log(*((double *)(phi_array->data + k*phi_array->strides[0] + v*phi_array->strides[1]))) +
           log(*((double *)(psi_array->data + k*psi_array->strides[0] + f*psi_array->strides[1]))) +
