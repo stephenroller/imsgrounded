@@ -275,9 +275,36 @@ def betarnd_array(a,b):
         b_sample=random.gamma(b)
         return a_sample/(a_sample+b_sample)
 
+def itersplit(s, sub):
+    pos = 0
+    while True:
+        i = s.find(sub, pos)
+        if i == -1:
+            yield s[pos:]
+            break
+        else:
+            yield s[pos:i]
+            pos = i + len(sub)
+
+def int2bytes(i8):
+    s = ""
+    for bi in xrange(8):
+        b = i8 & 0xFF
+        s += chr(b)
+        i8 >>= 8
+    return s
+
+def parse_item(item):
+    item = item.strip()
+    if "," in item:
+        left, tworight = item.split(",")
+        retval = [left] + tworight.split(":")
+    else:
+        retval = item.split(":")
+    return map(int, retval)
 
 def dataread(file):
-    return np.load(file).T
+    #return np.load(file).T
 
     tmpfile = open("binary.dat", "wb")
 
@@ -287,12 +314,12 @@ def dataread(file):
     tmpfile.write("\x93\x4e\x55\x4d\x50\x59\x01\x00\x46\x00")
 
     data_file=open(file)
-    dimensions = 1
+    dimensions = 2
     total_count = 0
     logging.warning("Starting to read data (pass 1)...")
     for doc_id, doc in enumerate(data_file):
         for item in itersplit(doc, " "):
-            splitted = map(int, item.strip().split(":"))
+            splitted = parse_item(item)
             total_count += splitted[-1]
             if len(splitted) == 2:
                 pass
@@ -319,7 +346,7 @@ def dataread(file):
         this_doc = []
         doc_counter = 0
         for item in itersplit(doc, " "):
-            splitted = map(int, item.strip().split(":"))
+            splitted = parse_item(item)
             if len(splitted) == 2:
                 feat_id = 0
                 word_id, count = splitted
