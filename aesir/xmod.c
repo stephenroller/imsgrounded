@@ -32,7 +32,7 @@ double lnsumexp(double xarray[], int n){
 
 static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   PyArrayObject *phi_array,*psi_array,*pi_array,*data_array,*x_array,*Rphi_array,*Rpsi_array,*S_array;
-  int Nj,F,K,i,k,dims_data[1],dims_kslice[2],v,g,f;
+  int Nj,F,K,i,k,v,g,f;
   double rand_x,s,z;
   int D,J;
 
@@ -48,10 +48,6 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
     &K)) {
       return NULL;
   }
-
-  dims_data[0] = Nj;
-  dims_kslice[0] = K;
-  dims_kslice[1] = Nj;
 
   int dims_Rphi[2];
   int dims_Rpsi[2];

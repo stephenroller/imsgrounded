@@ -35,20 +35,14 @@ class freyr:
         self.verbose=0
 
     def mcmc(self):
-        iteration=0
-        self.ll=np.empty(self.mcmc_iteration_max,float)
-
-        while iteration<self.mcmc_iteration_max:
+        for iteration in xrange(int(self.mcmc_iteration_max)):
             self.fast_posterior()
             self.gamma_a_mle()
             self.theta_a_mle()
             self.beta_a_mle()
 
-            self.ll[iteration]=self.pseudologlikelihood
-
             if self.verbose:
                 logging.warning("LL[%4d] = %f" % (iteration, self.pseudologlikelihood))
-            iteration+=1
 
     def fast_posterior(self):
         vpsi=np.hstack(( np.ones((self.K,1)),self.psi))
