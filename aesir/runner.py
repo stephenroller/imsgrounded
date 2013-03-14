@@ -10,11 +10,16 @@ k = int(k)
 
 print "[%s] Loading Data..." % now()
 data = aesir.dataread(data_f)
-print "[%s] Initing Model..." % now()
+init_time = now()
+print "[%s] Initing Model..." % init_time
 model = aesir.freyr(data, K=k)
-print "[%s] Starting MCMC..." % now()
+mcmc_time = now()
+print "Initialization time: %s" % (mcmc_time - init_time)
+print "[%s] Starting MCMC..." % mcmc_time
 model.mcmc()
-print "[%s] Done with MCMC!" % now()
+mcmc_stop_time = now()
+print "[%s] Done with MCMC!" % mcmc_stop_time
+print "Time for MCMC: %s" % (mcmc_stop_time - mcmc_time)
 model.getvocablabels(labels_f)
 model.getfeaturelabels(features_f)
 print "[%s] Loaded labels..." % now()
