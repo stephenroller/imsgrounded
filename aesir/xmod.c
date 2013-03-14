@@ -65,24 +65,24 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
       return NULL;
   }
 
-  dims_data[0]=Nj;
-  dims_kslice[0]=K;
-  dims_kslice[1]=Nj;
+  dims_data[0] = Nj;
+  dims_kslice[0] = K;
+  dims_kslice[1] = Nj;
 
   int dims_Rphi[2];
   int dims_Rpsi[2];
   int dims_S[2];
 
-  dims_Rphi[0]=K;
-  dims_Rphi[1]=D;
+  dims_Rphi[0] = K;
+  dims_Rphi[1] = D;
 
-  dims_Rpsi[0]=K;
-  dims_Rpsi[1]=F;
+  dims_Rpsi[0] = K;
+  dims_Rpsi[1] = F;
 
-  dims_S[0]=J;
-  dims_S[1]=K;
+  dims_S[0] = J;
+  dims_S[1] = K;
 
-  double Z=0;
+  double Z = 0;
 
   Rphi_array =(PyArrayObject *) PyArray_FromDims(2,dims_Rphi,NPY_INT);
   Rpsi_array =(PyArrayObject *) PyArray_FromDims(2,dims_Rpsi,NPY_INT);
@@ -95,9 +95,9 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   double p_array[K];
 
   for (i=0;i<Nj;i++) {
-    v=*((int *)(data_array->data + 2*data_array->strides[0] + i*data_array->strides[1]  ));
-    f=*((int *)(data_array->data + 3*data_array->strides[0] + i*data_array->strides[1]  ));
-    g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]  ));
+    v=*((int *)(data_array->data + 1*data_array->strides[0] + i*data_array->strides[1]));
+    f=*((int *)(data_array->data + 2*data_array->strides[0] + i*data_array->strides[1]));
+    g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]));
 
     for (k=0;k<K;k++) {
       f_array[k] =

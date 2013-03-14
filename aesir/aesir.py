@@ -9,11 +9,11 @@ import tempfile
 class freyr:
     def __init__(self,data,K=100):
         self.data=data
-        self.V=self.data[2].max()+1
-        """We augment the feature indices in data[3] by one, reserving 0 for the absence of a feature"""
-        self.F=self.data[3].max()+1-1
+        self.V=self.data[1].max()+1
+        """We augment the feature indices in data[2] by one, reserving 0 for the absence of a feature"""
+        self.F=self.data[2].max()+1-1
         self.J=self.data[0].max()+1
-        self.nj=doccounts(data[1])
+        self.nj=doccounts(data[0])
         self.Nj=int(self.nj.sum())
         self.K=K
 
@@ -157,16 +157,16 @@ class dirichlet:
             iteration+=1
 
 
-def doccounts(wordnumcol):
+def doccounts(docidcol):
     counts = []
-    lastwordnum = -1
+    lastdoc = -1
     count = 0
-    for wordnum in wordnumcol:
-        if wordnum < lastwordnum:
+    for docid in docidcol:
+        if docid != lastdoc and lastdoc != -1:
             counts.append(count)
             count = 0
         count += 1
-        lastwordnum = wordnum
+        lastdoc = docid
     counts.append(count)
     return np.array(counts, float)
 
@@ -252,7 +252,7 @@ def dataread(file):
 
     # okay let's go through this again
     # start writing the header.
-    header = "{'descr': '<i8', 'fortran_order': False, 'shape': (%d, %d), }" % (total_count, dimensions + 2)
+    header = "{'descr': '<i8', 'fortran_order': False, 'shape': (%d, %d), }" % (total_count, dimensions + 1)
     header = ("%-69s\x0a" % header)
     tmpfile.write(header)
 
@@ -263,8 +263,6 @@ def dataread(file):
     dimensions = 1
     logging.warning("Starting to read data (pass 2)...")
     for doc_id, doc in enumerate(data_file):
-        this_doc = []
-        doc_counter = 0
         for item in itersplit(doc, " "):
             splitted = parse_item(item)
             if len(splitted) == 2:
@@ -275,11 +273,10 @@ def dataread(file):
 
             for x in xrange(count):
                 if False and dimensions == 1:
-                    a = [doc_id, doc_counter, word_id]
+                    a = [doc_id, word_id]
                 else:
-                    a = [doc_id, doc_counter, word_id, feat_id]
+                    a = [doc_id, word_id, feat_id]
                 tmpfile.write("".join(map(int2bytes, a)))
-                doc_counter += 1
 
     tmpfile.close()
     data = np.load(tmpfile.name)
