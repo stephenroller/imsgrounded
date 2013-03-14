@@ -64,48 +64,6 @@ static PyObject* trigamma(PyObject *self, PyObject *args) {
   return PyFloat_FromDouble(p);
 }
 
-static void v_digamma(char **args, npy_intp *dimensions, npy_intp *steps, void *data) {
-  npy_intp i;
-  npy_intp n = dimensions[0];
-  char *in = args[0], *out = args[1];
-  npy_intp in_step = steps[0], out_step = steps[1];
-
-  double tmp;
-
-  for (i = 0; i < n; i++) {
-    // BEGIN main ufunc computation
-    tmp = *(double*)in;
-    if (tmp < GAMMA_THRESH)
-      *((double *)out) = MAGIC_GAMMA_CONSTANT;
-    else
-      *((double *)out) = fastdigamma(tmp);
-    // END main ufunc computation
-    in += in_step;
-    out += out_step;
-  }
-}
-
-static void v_trigamma(char **args, npy_intp *dimensions, npy_intp *steps, void *data) {
-  npy_intp i;
-  npy_intp n = dimensions[0];
-  char *in = args[0], *out = args[1];
-  npy_intp in_step = steps[0], out_step = steps[1];
-
-  double tmp;
-
-  for (i = 0; i < n; i++) {
-    // BEGIN main ufunc computation
-    tmp = *(double*)in;
-    if (tmp < GAMMA_THRESH)
-      *((double *)out) = MAGIC_GAMMA_CONSTANT;
-    else
-      *((double *)out) = fasttrigamma(tmp);
-    // END main ufunc computation
-    in += in_step;
-    out += out_step;
-  }
-}
-
 double lnsumexp(double xarray[], int n) {
   int i;
   double x,m,y;
@@ -219,11 +177,6 @@ static PyMethodDef xmod_methods[] = {
 };
 
 
-PyUFuncGenericFunction digamma_funcs[1] = {&v_digamma};
-PyUFuncGenericFunction trigamma_funcs[1] = {&v_trigamma};
-static char types[2] = {NPY_DOUBLE, NPY_DOUBLE};
-static void *data[1] = {NULL};
-
 PyMODINIT_FUNC initxmod() {
   PyObject *mod = Py_InitModule("xmod", xmod_methods);
   // initialize the RNG
@@ -231,18 +184,6 @@ PyMODINIT_FUNC initxmod() {
 
   // required NumPy initialization */
   import_array();
-  // okay, let's get our ufunc's up and running.
-  import_umath();
-
-  PyObject *d = PyModule_GetDict(mod);
-
-  PyObject *v_digamma = PyUFunc_FromFuncAndData(digamma_funcs, data, types, 1, 1, 1, PyUFunc_None, "vdigamma", "vectorized digamma", 0);
-  PyDict_SetItemString(d, "vdigamma", v_digamma);
-  Py_DECREF(v_digamma);
-  PyObject *v_trigamma = PyUFunc_FromFuncAndData(trigamma_funcs, data, types, 1, 1, 1, PyUFunc_None, "vtrigamma", "vectorized trigamma", 0);
-  PyDict_SetItemString(d, "vtrigamma", v_trigamma);
-  Py_DECREF(v_trigamma);
-
 }
 
 
