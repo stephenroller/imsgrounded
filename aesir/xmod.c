@@ -6,12 +6,9 @@
 #include <time.h>
 #include <gsl/gsl_rng.h>
 
-
-
-
 double max(PyArrayObject *array) {
-int m,x;
-int i,n;
+  int m,x;
+  int i,n;
 
   n=array->dimensions[0];
   m = *(((int *)array->data));
@@ -74,7 +71,6 @@ double logsumexp(PyArrayObject *xarray) {
 
 
 static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
-
   PyArrayObject *phi_array,*psi_array,*pi_array,*data_array,*x_array,*Rphi_array,*Rpsi_array,*S_array;
   int Nj,F,K,i,k,dims_data[1],dims_kslice[2],v,g,f;
   double rand_x,s,z;
@@ -207,7 +203,6 @@ static PyObject *xposterior(PyObject *self, PyObject *args) {
       *((double *)(p_array->data + k*p_array->strides[0])) =
         exp(*((double *)(f_array->data + k*f_array->strides[0])) - z);
     }
-
 
     rand_x=gsl_rng_uniform(r);
     s=*(double *)(p_array->data);
