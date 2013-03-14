@@ -1,8 +1,11 @@
 import scipy
 import scipy.special as Sp
 from numpy import *
+import numpy as np
 import xmod
 import time
+import logging
+import tempfile
 
 class freyr:
     def __init__(self,data,K=100):
@@ -28,8 +31,8 @@ class freyr:
         self.psiprior=dirichlet()
         self.piprior=dirichlet()
 
-        self.init_iteration_max=1e+2
-        self.mcmc_iteration_max=1e+3
+        self.init_iteration_max=1e+3
+        self.mcmc_iteration_max=1e+4
         self.iteration_eps=1e-5
         self.verbose=1
     
@@ -135,7 +138,10 @@ class freyr:
             for i in flipud(argsort(self.phi[j])[-k:]):
                 Lphi.append((self.vocab_labels[i],self.phi[j,i])),
             for i in flipud(argsort(self.psi[j])[-k:]):
+                continue
                 Lpsi.append((self.feature_labels[i],self.psi[j,i])),
+            import pdb
+            #pdb.set_trace()
             self.latent_labels.append((Lphi,Lpsi))
 
     def printlatentlabels(self,k=10):
@@ -145,10 +151,10 @@ class freyr:
             k+=1
             print str(k)+': ',
             for i in l[0]:
-                print '%s(%2.2f)' % (i[0],i[1]),
+                print '%s(%2.4f)' % (i[0],i[1]),
             print "\n",
             for j in l[1]:
-                print '%s(%2.2f)' % (j[0],j[1]),
+                print '%s(%2.4f)' % (j[0],j[1]),
             print "\n\n",
     
     def getfeaturelabels(self,file):
@@ -188,14 +194,14 @@ class freyja:
         #self.beta=ones(self.D)
 
         self.init_iteration_max=1e+2
-        self.mcmc_iteration_max=1e+3
+        self.mcmc_iteration_max=1e+4
         self.iteration_eps=1e-5
         self.verbose=1
 
         self.Nj=int(self.nj.sum())
         
         #self.maxarray=10**8
-        self.maxarray=2.5*10**7
+        self.maxarray=2.5*10**6
 
         """We run into memory problems here. 
         The posterior distribution over the latent variables for each observation will be a model.K*model.mj.sum() matrix
@@ -415,7 +421,7 @@ class freyja:
             
             if theta<=0:
                 init_theta=init_theta/10.0
-                #print "warning, warning... alpha is nan; new init is %2.2f" % init_theta
+                #print "warning, warning... alpha is nan; new init is %2.8f" % init_theta
                 theta=init_theta
                 iter=0
 
@@ -708,7 +714,7 @@ class freyja:
         for i in arange(len(self.latent_labels)):
             print  i+1, ":",
             for term in self.latent_labels[i]:
-                print  '%s (%.2f)' % (term[1],term[0]),
+                print  '%s (%.8f)' % (term[1],term[0]),
             print  "\n",
 
 
@@ -770,52 +776,102 @@ def betarnd_array(a,b):
 
 def freya_dataread(file):
 
-        data_file=open(file).readlines()
+        data_file=open(file)
         w=[]
 
-        for i in arange(len(data_file)):
-            for x in data_file[i].split():
+        for i, line in enumerate(data_file):
+            print "Read line %d." % (i + 1)
+            for x in line.strip.split():
                 y=x.split(":")
                 w.append((int(y[0]),int(y[1]),i))
 
         return array(w).T
 
+def itersplit(s, sub):
+    pos = 0
+    while True:
+        i = s.find(sub, pos)
+        if i == -1:
+            yield s[pos:]
+            break
+        else:
+            yield s[pos:i]
+            pos = i + len(sub)
+
+
+def int2bytes(i8):
+    s = ""
+    for bi in xrange(8):
+        b = i8 & 0xFF
+        s += chr(b)
+        i8 >>= 8
+    return s
+
 def dataread(file):
-        # so far recognizes two data-types, lda and combinatorial lda
-        data_file=open(file).readlines()
-        
-        mx=0    
-        for group in data_file:
-            for item in group.split():
-                if len(item.split(":")[0].split(",")) > mx:
-                    mx=len(item.split(":")[0].split(","))
+    return np.load(file).T
 
+    tmpfile = open("binary.dat", "wb")
 
-        data=[]
-        group_j=0
-        for group in data_file:
-            item_i=0
-            for item in group.split():
-                for i in xrange(int(item.split(":")[1])):
-                    if mx==1:
-                        # regular old lda format 
-                        data.append([group_j,item_i,int(item.split(":")[0])])
-                    elif mx==2:
-                        # combinatorial lda format
-                        x=[int(i) for i in  item.split(":")[0].split(",")]
-                        
-                        if len(x)==1:
-                            # possible blanks, if so assume missing value is second one equal to zero
-                            # we reserve 0 as the marker for blank, and so augment each index for second variable by 1
-                            data.append([group_j,item_i,x[0],0])
-                        else:
-                            data.append([group_j,item_i,x[0],x[1]+1])
-                    item_i+=1
-            group_j+=1
-        return array(data,int).T
+    #tmpfile = tempfile.NamedTemporaryFile(delete=False)
+    #print tmpfile.name
+
+    tmpfile.write("\x93\x4e\x55\x4d\x50\x59\x01\x00\x46\x00")
+
+    data_file=open(file)
+    dimensions = 1
+    total_count = 0
+    logging.warning("Starting to read data (pass 1)...")
+    for doc_id, doc in enumerate(data_file):
+        for item in itersplit(doc, " "):
+            splitted = map(int, item.strip().split(":"))
+            total_count += splitted[-1]
+            if len(splitted) == 2:
+                pass
+            elif len(splitted) == 3:
+                dimensions = 2
+            else:
+                raise ValueError("Doc %d is invalid (item %d: '%s')" % (group_j, item_i, item))
+
+    data_file.close()
+
+    # okay let's go through this again
+    # start writing the header.
+    header = "{'descr': '<i8', 'fortran_order': False, 'shape': (%d, %d), }" % (total_count, dimensions + 2)
+    header = ("%-69s\x0a" % header)
+    tmpfile.write(header)
+
+    # so far recognizes two data-types, lda and combinatorial lda
+    data_file=open(file)
+    group_j=0
+
+    dimensions = 1
+    logging.warning("Starting to read data (pass 2)...")
+    for doc_id, doc in enumerate(data_file):
+        this_doc = []
+        doc_counter = 0
+        for item in itersplit(doc, " "):
+            splitted = map(int, item.strip().split(":"))
+            if len(splitted) == 2:
+                feat_id = 0
+                word_id, count = splitted
+            elif len(splitted) == 3:
+                word_id, feat_id, count = splitted
+
+            for x in xrange(count):
+                if False and dimensions == 1:
+                    a = [doc_id, doc_counter, word_id]
+                else:
+                    a = [doc_id, doc_counter, word_id, feat_id]
+                tmpfile.write("".join(map(int2bytes, a)))
+                doc_counter += 1
+
+    tmpfile.close()
+    data = np.load(tmpfile.name)
+    del tmpfile
+
+    return data.T
 
 def group_similarities_avg(model,k=10):
-    
     P=zeros((model.J,model.J))
     for t in arange(len(model.Pi)):
         model.pi=model.Pi[t]
@@ -1003,7 +1059,7 @@ class fricka:
 
         self.verbose=1
         self.init_iteration_max=1e+3
-        self.mcmc_iteration_max=1e+3
+        self.mcmc_iteration_max=1e+4
         self.iteration_eps=1e-5
 
     def observation(self,data):
@@ -1248,8 +1304,8 @@ class fricka:
             print i+1, ":",
             #print >> file, i+1, ":",
             for feature in self.latent_labels[i]:
-                print '%s (%.2f)' % (feature[1],feature[0]),
-                #print >> file, '%s (%.2f)' % (feature[1],feature[0])
+                print '%s (%.8f)' % (feature[1],feature[0]),
+                #print >> file, '%s (%.8f)' % (feature[1],feature[0])
             print "\n"
             #print >> file, "\n"
 
@@ -1268,8 +1324,8 @@ class fricka:
             p=W[:,i]
             s=flipud(argsort(p))
             for w in s[:k-1]:
-                print '%s (%.2f)%s' % (self.data_labels[w], p[w],","),
-            print '%s (%.2f)' % (self.data_labels[s[k]], p[s[k]])
+                print '%s (%.8f)%s' % (self.data_labels[w], p[w],","),
+            print '%s (%.8f)' % (self.data_labels[s[k]], p[s[k]])
 
 
     def data_similarities_avg(model,k=10):
@@ -1288,8 +1344,8 @@ class fricka:
             p=W[:,i]
             s=flipud(argsort(p))
             for w in s[:k-1]:
-                print '%s (%.2f)%s' % (self.data_labels[w], p[w],","),
-            print '%s (%.2f)' % (self.data_labels[s[k]], p[s[k]])
+                print '%s (%.8f)%s' % (self.data_labels[w], p[w],","),
+            print '%s (%.8f)' % (self.data_labels[s[k]], p[s[k]])
 
 
 
@@ -1312,8 +1368,8 @@ def data_similarities(model,k=10):
         p=W[:,i]
         s=flipud(argsort(p))
         for w in s[:k-1]:
-            print '%s (%.2f)%s' % (model.data_labels[w], p[w],","),
-        print '%s (%.2f)' % (model.data_labels[s[k]], p[s[k]])
+            print '%s (%.8f)%s' % (model.data_labels[w], p[w],","),
+        print '%s (%.8f)' % (model.data_labels[s[k]], p[s[k]])
 
 
 def get_test_data(data,p=.05):
@@ -1329,7 +1385,7 @@ def get_test_data(data,p=.05):
 #    p=W[:,i]
 #    s=flipud(argsort(p))
 #    for w in s[:k-1]:
-#        print '%s (%.2f)%s' % (model.data_labels[w], p[w],","),
-#    print '%s (%.2f)' % (model.data_labels[s[k]], p[s[k]])
+#        print '%s (%.8f)%s' % (model.data_labels[w], p[w],","),
+#    print '%s (%.8f)' % (model.data_labels[s[k]], p[s[k]])
 
 
