@@ -159,77 +159,7 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
 }
 
 
-static PyObject *indsum(PyObject *self, PyObject *args) {
-  PyArrayObject *parray, *iarray, *sarray;
-  int i,n,N,dims[2];
-  double xi;
-  int ii,j,k;
-
-  if (!PyArg_ParseTuple(args, "iO!O!:indsum",
-    &N,
-    &PyArray_Type, &iarray,
-    &PyArray_Type, &parray)) {
-      return NULL;
-  }
-
-  if (parray->nd > 2) {
-    PyErr_SetString(PyExc_ValueError,"parray should be no more than 2d");
-    return NULL;
-  }
-
-  if (parray->nd ==1)
-    k=1;
-  else
-    k=parray->dimensions[1];
-
-  if (iarray->nd !=1 ) {
-    PyErr_SetString(PyExc_ValueError,"iarray needs to be 1d");
-    return NULL;
-  }
-
-  if (parray->dimensions[0] != iarray->dimensions[0]) {
-    PyErr_SetString(PyExc_ValueError,"parray and iarray need to be of same length");
-    return NULL;
-  }
-
-  if (parray->descr->type_num != NPY_DOUBLE) {
-    PyErr_SetString(PyExc_ValueError,"parray should be floats");
-    return NULL;
-  }
-
-  if (iarray->descr->type_num != NPY_LONG && iarray->descr->type_num != NPY_INT) {
-    PyErr_SetString(PyExc_ValueError,"iarray should be integers");
-    return NULL;
-  }
-
-  dims[0]=N;
-  dims[1]=k;
-
-  sarray =(PyArrayObject *) PyArray_FromDims(2,dims,NPY_DOUBLE);
-
-  for (i=0; i<N; i++) {
-    for (j=0; j<k; j++) {
-      *((double *)(sarray->data + i*sarray->strides[0] + j*sarray->strides[1])) = 0.0;
-    }
-  }
-
-  n=parray->dimensions[0];
-
-  for (i=0; i<n; i++) {
-    ii=*((int *)(iarray->data + i*iarray->strides[0]));
-    for (j=0; j<k; j++) {
-      xi=*((double *)(parray->data + i*parray->strides[0] + j*parray->strides[1] ));
-      *((double *)(sarray->data + ii*sarray->strides[0]  + j*sarray->strides[1] ))+=xi;
-    }
-  }
-
-  return PyArray_Return(sarray);
-}
-
-
-
 static PyMethodDef xmod_methods[] = {
-  {"indsum",indsum, METH_VARARGS},
   {"xfactorialposterior",xfactorialposterior,METH_VARARGS},
   {NULL, NULL}     /* required ending of the method table */
 };

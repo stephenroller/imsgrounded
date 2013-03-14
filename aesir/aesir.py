@@ -14,14 +14,13 @@ class freyr:
         """We augment the feature indices in data[3] by one, reserving 0 for the absence of a feature"""
         self.F=self.data[3].max()+1-1
         self.J=self.data[0].max()+1
-        self.nj=xmod.indsum(self.J,ascontiguousarray(self.data[0]),ascontiguousarray(ones(len(self.data[0])))).T[0]
+        self.nj=doccounts(data[1])
         self.Nj=int(self.nj.sum())
         self.K=K
 
         self.theta=ones(self.K)/self.K
         self.beta=ones(self.V)/self.V
         self.gamma=ones(self.F)/self.F
-
 
         self.phi=clip(dirichletrnd(self.beta,self.K),1e-10,1-1e-10);
         self.psi=clip(dirichletrnd(self.gamma,self.K),1e-10,1-1e-10);
@@ -34,7 +33,7 @@ class freyr:
         self.init_iteration_max=1e+2
         self.mcmc_iteration_max=1e+3
         self.iteration_eps=1e-5
-        self.verbose=1
+        self.verbose=0
     
     def mcmc(self):
         iteration=0
@@ -49,7 +48,7 @@ class freyr:
             self.ll[iteration]=self.pseudologlikelihood
 
             if self.verbose:
-                print self.ll[iteration]
+                logging.warning("LL[%4d] = %f" % (iteration, self.pseudologlikelihood))
             iteration+=1
     
 
@@ -220,6 +219,19 @@ class dirichlet:
 
             iteration+=1
 
+
+def doccounts(wordnumcol):
+    counts = []
+    lastwordnum = -1
+    count = 0
+    for wordnum in wordnumcol:
+        if wordnum < lastwordnum:
+            counts.append(count)
+            count = 0
+        count += 1
+        lastwordnum = wordnum
+    counts.append(count)
+    return np.array(counts, float)
 
 
 def norm(x):
