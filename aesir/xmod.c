@@ -46,34 +46,6 @@ double lnsumexp(double xarray[], int n){
   return z;
 }
 
-
-double logsumexp(PyArrayObject *xarray) {
-  int i,n;
-  double x,m,y,z;
-
-  /* get the dimensionality of x */
-  n=xarray->dimensions[0];
-
-  /*get the max of x-array */
-  m=*(double *)(xarray->data);
-  for (i=1; i<n; i++) {
-    x= *((double *)(xarray->data + i*xarray->strides[0] ));
-    if (x>m) {
-      m = x;
-    }
-  }
-  /* add up the exp of every element minux max */
-  for (i=0;i<n;i++) {
-    y+=exp(*((double *)(xarray->data + i*xarray->strides[0] ))-m);
-  }
-
-  /* return max + log(sum(exp((x-max(x))))) */
-  z = m + log(y);
-
-  return z;
-}
-
-
 static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   PyArrayObject *phi_array,*psi_array,*pi_array,*data_array,*x_array,*Rphi_array,*Rpsi_array,*S_array;
   int Nj,F,K,i,k,dims_data[1],dims_kslice[2],v,g,f;
