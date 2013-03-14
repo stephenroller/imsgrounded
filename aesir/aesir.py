@@ -21,9 +21,9 @@ class freyr:
         self.beta=np.ones(self.V)/self.V
         self.gamma=np.ones(self.F)/self.F
 
-        self.phi=np.clip(dirichletrnd(self.beta,self.K),1e-10,1-1e-10);
-        self.psi=np.clip(dirichletrnd(self.gamma,self.K),1e-10,1-1e-10);
-        self.pi=np.clip(dirichletrnd(self.theta,self.J),1e-10,1-1e-10);
+        self.phi=clip(dirichletrnd(self.beta,self.K))
+        self.psi=clip(dirichletrnd(self.gamma,self.K))
+        self.pi=clip(dirichletrnd(self.theta,self.J))
 
         self.phiprior=dirichlet()
         self.psiprior=dirichlet()
@@ -53,10 +53,9 @@ class freyr:
     def fast_posterior(self):
         vpsi=np.hstack(( np.ones((self.K,1)),self.psi))
         self.Rphi,self.Rpsi,self.S,Z=xmod.xfactorialposterior(self.phi,vpsi,self.pi,self.data,self.Nj,self.V,self.F+1,self.J,self.K)
-
-        phi=np.clip(dirichletrnd_array(self.Rphi+self.beta),1e-10,1-1e-10);
-        psi=np.clip(dirichletrnd_array(self.Rpsi[:,1:]+self.gamma),1e-10,1-1e-10);
-        vpi=np.clip(dirichletrnd_array(self.S+self.theta),1e-10,1-1e-10)
+        phi=clip(dirichletrnd_array(self.Rphi+self.beta))
+        psi=clip(dirichletrnd_array(self.Rpsi[:,1:]+self.gamma))
+        vpi=clip(dirichletrnd_array(self.S+self.theta))
 
         self.phi=np.ascontiguousarray((phi.T/phi.sum(1)).T)
         self.psi=np.ascontiguousarray((psi.T/psi.sum(1)).T)
@@ -126,7 +125,7 @@ class dirichlet:
         self.mcmc_iteration_max=25
 
     def observation(self,data):
-        self.data=np.clip(data,1e-10,1-1e-10)
+        self.data=clip(data)
         self.J=data.shape[0]
         self.K=data.shape[1]
         self.logdatamean=np.log(self.data).mean(axis=0)
@@ -141,8 +140,8 @@ class dirichlet:
         return self.J*(Sp.gammaln(self.a)-Sp.gammaln(self.a*self.m).sum()+np.dot(self.a*self.m-1,self.logdatamean))
 
     def a_new(self):
-        d1=self.J*(psi(self.a) - np.dot(self.m,psi(self.a*self.m)) + np.dot(self.m,self.logdatamean));
-        d2=self.J*(psi(self.a,1) - np.dot(self.m**2,psi(self.a*self.m,1)));
+        d1=self.J*(psi(self.a) - np.dot(self.m,psi(self.a*self.m)) + np.dot(self.m,self.logdatamean))
+        d2=self.J*(psi(self.a,1) - np.dot(self.m**2,psi(self.a*self.m,1)))
         self.a= (1/self.a+d1/d2/self.a**2)**-1
 
     def a_update(self):
@@ -222,6 +221,9 @@ def parse_item(item):
     else:
         retval = item.split(":")
     return map(int, retval)
+
+def clip(arr):
+  return np.clip(arr, 1e-10, 1 - 1e-10)
 
 def dataread(file):
     #return np.load(file).T
