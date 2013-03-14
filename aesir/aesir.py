@@ -6,6 +6,7 @@ import xmod
 import time
 import logging
 import tempfile
+import datetime
 
 class freyr:
     def __init__(self,data,K=100):
@@ -33,18 +34,20 @@ class freyr:
         self.piprior = dirichlet()
         self.piprior.m=1.0/self.K
 
-        self.mcmc_iteration_max=1e+4
-        self.verbose=0
+        self.mcmc_iteration_max=1e+3
+        self.verbose=1
 
     def mcmc(self):
         for iteration in xrange(int(self.mcmc_iteration_max)):
+            last_time = datetime.datetime.now()
             self.fast_posterior()
             self.gamma_a_mle()
             self.theta_a_mle()
             self.beta_a_mle()
 
             if self.verbose:
-                logging.warning("LL[%4d] = %f" % (iteration, self.pseudologlikelihood))
+                timediff = datetime.datetime.now() - last_time
+                logging.warning("LL[%4d] = %f, took %s" % (iteration, self.pseudologlikelihood, timediff))
 
     def fast_posterior(self):
         vpsi=np.hstack(( np.ones((self.K,1)),self.psi))
