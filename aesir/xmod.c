@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <float.h>
+#include <limits.h>
 #include <gsl/gsl_rng.h>
 #include "fastapprox.h"
 
@@ -131,6 +132,8 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   double rand_x,s,z;
   int D,J;
 
+  int lastv = INT_MAX, lastf = INT_MAX, lastg = INT_MAX;
+
   if (!PyArg_ParseTuple(args, "O!O!O!O!iiiii",
     &PyArray_Type, &phi_array,
     &PyArray_Type, &psi_array,
@@ -176,14 +179,24 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
     // docid
     g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]));
 
-    for (k=0; k<K; k++) {
-      f_array[k] =
-          log(*((double *)(phi_array->data + k*phi_array->strides[0] + v*phi_array->strides[1]))) +
-          log(*((double *)(psi_array->data + k*psi_array->strides[0] + f*psi_array->strides[1]))) +
-          log(*((double *)(pi_array->data +  g*pi_array->strides[0] +  k*pi_array->strides[1])));
+    // if the last v, g and f are all the same, then this
+    // next calculation will be the same, so let's reuse it.
+    if (!(v == lastv && g == lastg && f == lastf)) {
+      // got here, so we couldn't reuse it.
+      for (k=0; k<K; k++) {
+        f_array[k] =
+            log(*((double *)(phi_array->data + k*phi_array->strides[0] + v*phi_array->strides[1]))) +
+            log(*((double *)(psi_array->data + k*psi_array->strides[0] + f*psi_array->strides[1]))) +
+            log(*((double *)(pi_array->data +  g*pi_array->strides[0] +  k*pi_array->strides[1])));
+      }
+
+      lastv = v;
+      lastg = g;
+      lastf = f;
+
+      z = lnsumexp(f_array, K);
     }
 
-    z = lnsumexp(f_array, K);
     Z += z;
 
     rand_x = gsl_rng_uniform(random_number_generator);
@@ -196,9 +209,9 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
       s += exp(f_array[k] - z);
     }
 
-    *((int *)(Rphi_array->data + k*Rphi_array->strides[0]  + v*Rphi_array->strides[1] ))+=1;
-    *((int *)(Rpsi_array->data + k*Rpsi_array->strides[0]  + f*Rpsi_array->strides[1] ))+=1;
-    *((int *)(S_array->data + g*S_array->strides[0]  + k*S_array->strides[1] ))+=1;
+    *((int *)(Rphi_array->data + k*Rphi_array->strides[0] + v*Rphi_array->strides[1] ))+=1;
+    *((int *)(Rpsi_array->data + k*Rpsi_array->strides[0] + f*Rpsi_array->strides[1] ))+=1;
+    *((int *)(S_array->data + g*S_array->strides[0] + k*S_array->strides[1] ))+=1;
 
   }
 
