@@ -78,8 +78,11 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   double f_array[K];
 
   for (i=0; i<Nj; i++) {
+    // vocab item
     v=*((int *)(data_array->data + 1*data_array->strides[0] + i*data_array->strides[1]));
+    // feature item
     f=*((int *)(data_array->data + 2*data_array->strides[0] + i*data_array->strides[1]));
+    // docid
     g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]));
 
     for (k=0; k<K; k++) {
@@ -89,17 +92,17 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
           log(*((double *)(pi_array->data +  g*pi_array->strides[0] +  k*pi_array->strides[1])));
     }
 
-    z=lnsumexp(f_array,K);
-    Z+=z;
+    z = lnsumexp(f_array, K);
+    Z += z;
 
     rand_x = gsl_rng_uniform(random_number_generator);
-    s=exp(f_array[0]-z);
+    s = exp(f_array[0] - z);
 
     k = 0;
     /* sample from exp(f_array[0]-z) */
-    while ((rand_x>=s) && (k<K)) {
+    while ((rand_x >= s) && (k < K)) {
       k++;
-      s+=exp(f_array[k]-z);
+      s += exp(f_array[k] - z);
     }
 
     *((int *)(Rphi_array->data + k*Rphi_array->strides[0]  + v*Rphi_array->strides[1] ))+=1;
