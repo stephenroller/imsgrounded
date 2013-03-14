@@ -14,313 +14,313 @@ double max(PyArrayObject *array)
 int m,x;
 int i,n;
 
-	n=array->dimensions[0];
-	m = *(((int *)array->data));
-	
-	for (i = 1; i < n; i++){
-		x= *((int *)(array->data + i*array->strides[0] ));
-			if (x > m){m=x;}
-		}
-	
-	return m;
+  n=array->dimensions[0];
+  m = *(((int *)array->data));
+  
+  for (i = 1; i < n; i++){
+    x= *((int *)(array->data + i*array->strides[0] ));
+      if (x > m){m=x;}
+    }
+  
+  return m;
 }
 
 double lnsumexp(double xarray[], int n){
-	int i;
-	double x,m,y,z;
+  int i;
+  double x,m,y,z;
 
-		/* get the dimensionality of x 
-		n=xarray->dimensions[0];*/
+    /* get the dimensionality of x 
+    n=xarray->dimensions[0];*/
 
-		
-		/*get the max of x-array 
-		m=*(double *)(xarray->data);*/
-		m=xarray[0];
-		for (i=1;i<n;i++){
-				if (xarray[i]>m){m=xarray[i];}
-			}
-		/* add up the exp of every element minux max */
-		y=0;
-		for (i=0;i<n;i++){
-			y+=exp(xarray[i]-m);
-			}
-		    
-		/* return max + log(sum(exp((x-max(x))))) */
-		z=m+log(y);
+    
+    /*get the max of x-array 
+    m=*(double *)(xarray->data);*/
+    m=xarray[0];
+    for (i=1;i<n;i++){
+        if (xarray[i]>m){m=xarray[i];}
+      }
+    /* add up the exp of every element minux max */
+    y=0;
+    for (i=0;i<n;i++){
+      y+=exp(xarray[i]-m);
+      }
+        
+    /* return max + log(sum(exp((x-max(x))))) */
+    z=m+log(y);
 
-		return z;
+    return z;
 }
 
 
 double logsumexp(PyArrayObject *xarray){
-	int i,n;
-	double x,m,y,z;
+  int i,n;
+  double x,m,y,z;
 
-		/* get the dimensionality of x */
-		n=xarray->dimensions[0];
+    /* get the dimensionality of x */
+    n=xarray->dimensions[0];
 
-		
-		/*get the max of x-array */
-		m=*(double *)(xarray->data);
-		for (i=1;i<n;i++){
-			x= *((double *)(xarray->data + i*xarray->strides[0] ));
-				if (x>m){m=x;}
-			}
-		/* add up the exp of every element minux max */
-		for (i=0;i<n;i++){
-			y+=exp(*((double *)(xarray->data + i*xarray->strides[0] ))-m);
-			}
-		    
-		/* return max + log(sum(exp((x-max(x))))) */
-		z=m+log(y);
+    
+    /*get the max of x-array */
+    m=*(double *)(xarray->data);
+    for (i=1;i<n;i++){
+      x= *((double *)(xarray->data + i*xarray->strides[0] ));
+        if (x>m){m=x;}
+      }
+    /* add up the exp of every element minux max */
+    for (i=0;i<n;i++){
+      y+=exp(*((double *)(xarray->data + i*xarray->strides[0] ))-m);
+      }
+        
+    /* return max + log(sum(exp((x-max(x))))) */
+    z=m+log(y);
 
-		return z;
+    return z;
 }
 
 
 static PyObject *xfactorialposterior(PyObject *self, PyObject *args){
 
-	PyArrayObject *phi_array,*psi_array,*pi_array,*data_array,*x_array,*Rphi_array,*Rpsi_array,*S_array;
-	int Nj,F,K,i,k,dims_data[1],dims_kslice[2],v,g,f;
-	double rand_x,s,z;
-	int D,J;
+  PyArrayObject *phi_array,*psi_array,*pi_array,*data_array,*x_array,*Rphi_array,*Rpsi_array,*S_array;
+  int Nj,F,K,i,k,dims_data[1],dims_kslice[2],v,g,f;
+  double rand_x,s,z;
+  int D,J;
 
-	if (!PyArg_ParseTuple(args, "O!O!O!O!iiiii", 
-		&PyArray_Type, &phi_array,
-		&PyArray_Type, &psi_array,
-		&PyArray_Type, &pi_array,
-		&PyArray_Type, &data_array,
-		&Nj,
-		&D,
-		&F,
-		&J,
-		&K)) 
-		{return NULL;}
+  if (!PyArg_ParseTuple(args, "O!O!O!O!iiiii", 
+    &PyArray_Type, &phi_array,
+    &PyArray_Type, &psi_array,
+    &PyArray_Type, &pi_array,
+    &PyArray_Type, &data_array,
+    &Nj,
+    &D,
+    &F,
+    &J,
+    &K)) 
+    {return NULL;}
 
-	dims_data[0]=Nj;
-	dims_kslice[0]=K;
-	dims_kslice[1]=Nj;
+  dims_data[0]=Nj;
+  dims_kslice[0]=K;
+  dims_kslice[1]=Nj;
 
-	int dims_Rphi[2];
-	int dims_Rpsi[2];
-	int dims_S[2];
+  int dims_Rphi[2];
+  int dims_Rpsi[2];
+  int dims_S[2];
 
-	dims_Rphi[0]=K;
-	dims_Rphi[1]=D;
-	
-	dims_Rpsi[0]=K;
-	dims_Rpsi[1]=F;
-	
-	dims_S[0]=J;
-	dims_S[1]=K;
+  dims_Rphi[0]=K;
+  dims_Rphi[1]=D;
+  
+  dims_Rpsi[0]=K;
+  dims_Rpsi[1]=F;
+  
+  dims_S[0]=J;
+  dims_S[1]=K;
 
-	double Z=0;
+  double Z=0;
 
-	Rphi_array =(PyArrayObject *) PyArray_FromDims(2,dims_Rphi,NPY_INT);
-	Rpsi_array =(PyArrayObject *) PyArray_FromDims(2,dims_Rpsi,NPY_INT);
-	S_array =(PyArrayObject *) PyArray_FromDims(2,dims_S,NPY_INT);
-	
-	/* create a random number generator object */
-	gsl_rng *r = gsl_rng_alloc (gsl_rng_mt19937);
+  Rphi_array =(PyArrayObject *) PyArray_FromDims(2,dims_Rphi,NPY_INT);
+  Rpsi_array =(PyArrayObject *) PyArray_FromDims(2,dims_Rpsi,NPY_INT);
+  S_array =(PyArrayObject *) PyArray_FromDims(2,dims_S,NPY_INT);
+  
+  /* create a random number generator object */
+  gsl_rng *r = gsl_rng_alloc (gsl_rng_mt19937);
 
-	/* seed the random number generator*/ 
-	gsl_rng_set(r,time(NULL));
-	
-	double f_array[K];
-	double p_array[K];
-	
-	for (i=0;i<Nj;i++) {
-		v=*((int *)(data_array->data + 2*data_array->strides[0] + i*data_array->strides[1]  ));
-		f=*((int *)(data_array->data + 3*data_array->strides[0] + i*data_array->strides[1]  ));
-		g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]  ));
-	
-	for (k=0;k<K;k++) {
-			f_array[k] = log(*((double *)(phi_array->data + k*phi_array->strides[0] + v*phi_array->strides[1])))
-					+ log(*((double *)(psi_array->data + k*psi_array->strides[0] + f*psi_array->strides[1])))
-					+ log(*((double *)(pi_array->data + g*pi_array->strides[0] + k*pi_array->strides[1])));
-				}
-	z=lnsumexp(f_array,K);
-	Z+=z;
+  /* seed the random number generator*/ 
+  gsl_rng_set(r,time(NULL));
+  
+  double f_array[K];
+  double p_array[K];
+  
+  for (i=0;i<Nj;i++) {
+    v=*((int *)(data_array->data + 2*data_array->strides[0] + i*data_array->strides[1]  ));
+    f=*((int *)(data_array->data + 3*data_array->strides[0] + i*data_array->strides[1]  ));
+    g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]  ));
+  
+  for (k=0;k<K;k++) {
+      f_array[k] = log(*((double *)(phi_array->data + k*phi_array->strides[0] + v*phi_array->strides[1])))
+          + log(*((double *)(psi_array->data + k*psi_array->strides[0] + f*psi_array->strides[1])))
+          + log(*((double *)(pi_array->data + g*pi_array->strides[0] + k*pi_array->strides[1])));
+        }
+  z=lnsumexp(f_array,K);
+  Z+=z;
 
-		rand_x=gsl_rng_uniform(r);
-		s=exp(f_array[0]-z);
-		
-		k=0;
-		/* sample from exp(f_array[0]-z) */
-		while ((rand_x>=s) && (k<K)) {
-			k++;
-			s+=exp(f_array[k]-z);
-		}
+    rand_x=gsl_rng_uniform(r);
+    s=exp(f_array[0]-z);
+    
+    k=0;
+    /* sample from exp(f_array[0]-z) */
+    while ((rand_x>=s) && (k<K)) {
+      k++;
+      s+=exp(f_array[k]-z);
+    }
 
-		
-		*((int *)(Rphi_array->data + k*Rphi_array->strides[0]  + v*Rphi_array->strides[1] ))+=1;
-		*((int *)(Rpsi_array->data + k*Rpsi_array->strides[0]  + f*Rpsi_array->strides[1] ))+=1;
-		*((int *)(S_array->data + g*S_array->strides[0]  + k*S_array->strides[1] ))+=1;
+    
+    *((int *)(Rphi_array->data + k*Rphi_array->strides[0]  + v*Rphi_array->strides[1] ))+=1;
+    *((int *)(Rpsi_array->data + k*Rpsi_array->strides[0]  + f*Rpsi_array->strides[1] ))+=1;
+    *((int *)(S_array->data + g*S_array->strides[0]  + k*S_array->strides[1] ))+=1;
 
-	}
+  }
 
-	return Py_BuildValue("(NNNd)", Rphi_array,Rpsi_array,S_array,Z);
+  return Py_BuildValue("(NNNd)", Rphi_array,Rpsi_array,S_array,Z);
 
-	gsl_rng_free(r);
+  gsl_rng_free(r);
 
 }
 
 
 static PyObject *xposterior(PyObject *self, PyObject *args){
-	
-	PyArrayObject *phi_array,*pi_array,*data_array,*f_array,*p_array,*x_array;
-	int Nj,K,i,k,dims[1],dims_data[1],dims_kslice[1],v,g;
-	double rand_x,s,z;
+  
+  PyArrayObject *phi_array,*pi_array,*data_array,*f_array,*p_array,*x_array;
+  int Nj,K,i,k,dims[1],dims_data[1],dims_kslice[1],v,g;
+  double rand_x,s,z;
 
-	if (!PyArg_ParseTuple(args, "O!O!O!ii", 
-		&PyArray_Type, &phi_array,
-		&PyArray_Type, &pi_array,
-		&PyArray_Type, &data_array,
-		&Nj,
-		&K)) 
-		{return NULL;}
-	
-	/* create a random number generator object */
-	gsl_rng *r = gsl_rng_alloc (gsl_rng_mt19937);
+  if (!PyArg_ParseTuple(args, "O!O!O!ii", 
+    &PyArray_Type, &phi_array,
+    &PyArray_Type, &pi_array,
+    &PyArray_Type, &data_array,
+    &Nj,
+    &K)) 
+    {return NULL;}
+  
+  /* create a random number generator object */
+  gsl_rng *r = gsl_rng_alloc (gsl_rng_mt19937);
 
-	/* seed the random number generator*/ 
-	gsl_rng_set(r,time(NULL));
-	
-	dims_data[0]=Nj;
-	dims_kslice[0]=K;
+  /* seed the random number generator*/ 
+  gsl_rng_set(r,time(NULL));
+  
+  dims_data[0]=Nj;
+  dims_kslice[0]=K;
 
-	x_array =(PyArrayObject *) PyArray_FromDims(1,dims_data,NPY_INT);
-	f_array =(PyArrayObject *) PyArray_FromDims(1,dims_kslice,NPY_DOUBLE);
-	p_array =(PyArrayObject *) PyArray_FromDims(1,dims_kslice,NPY_DOUBLE);
+  x_array =(PyArrayObject *) PyArray_FromDims(1,dims_data,NPY_INT);
+  f_array =(PyArrayObject *) PyArray_FromDims(1,dims_kslice,NPY_DOUBLE);
+  p_array =(PyArrayObject *) PyArray_FromDims(1,dims_kslice,NPY_DOUBLE);
 
-	for (i=0;i<Nj;i++) {
-			
-		v=*((int *)(data_array->data + 2*data_array->strides[0] + i*data_array->strides[1]  ));
-		g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]  ));
-			for (k=0;k<K;k++) {
-				*((double *)(f_array->data + k*f_array->strides[0])) = 
-				log( *((double *)(phi_array->data + k*phi_array->strides[0] + v*phi_array->strides[1])));
-				+log( *((double *)(pi_array->data + g*pi_array->strides[0] + k*pi_array->strides[1])));
+  for (i=0;i<Nj;i++) {
+      
+    v=*((int *)(data_array->data + 2*data_array->strides[0] + i*data_array->strides[1]  ));
+    g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]  ));
+      for (k=0;k<K;k++) {
+        *((double *)(f_array->data + k*f_array->strides[0])) = 
+        log( *((double *)(phi_array->data + k*phi_array->strides[0] + v*phi_array->strides[1])));
+        +log( *((double *)(pi_array->data + g*pi_array->strides[0] + k*pi_array->strides[1])));
 
-			}
-			
-	
-		z=logsumexp(f_array);
+      }
+      
+  
+    z=logsumexp(f_array);
 
-			for (k=0;k<K;k++) {
-				*((double *)(p_array->data + k*p_array->strides[0])) 
-				= exp(*((double *)(f_array->data + k*f_array->strides[0])) - z);
-			}
+      for (k=0;k<K;k++) {
+        *((double *)(p_array->data + k*p_array->strides[0])) 
+        = exp(*((double *)(f_array->data + k*f_array->strides[0])) - z);
+      }
 
 
-		rand_x=gsl_rng_uniform(r);
-		s=*(double *)(p_array->data);
-		
-		k=0;
-		while ((rand_x>=s) && (k<K)) {
-			k++;
-			s+=*(double *)(p_array->data + k*p_array->strides[0]);
-		}
-			*((int *)(x_array->data + i*x_array->strides[0] )) = k;
+    rand_x=gsl_rng_uniform(r);
+    s=*(double *)(p_array->data);
+    
+    k=0;
+    while ((rand_x>=s) && (k<K)) {
+      k++;
+      s+=*(double *)(p_array->data + k*p_array->strides[0]);
+    }
+      *((int *)(x_array->data + i*x_array->strides[0] )) = k;
 
-	}
-	
+  }
+  
 
-	return PyArray_Return(p_array);
-	
-/*	return Py_BuildValue("i", K);*/
-	/* free up the object */
-	gsl_rng_free(r);
+  return PyArray_Return(p_array);
+  
+/*  return Py_BuildValue("i", K);*/
+  /* free up the object */
+  gsl_rng_free(r);
 }
 
 
 static PyObject *indsum(PyObject *self, PyObject *args){
 
-	PyArrayObject *parray, *iarray, *sarray; 
-	int i,n,N,dims[2];
-	double xi;
-	int ii,j,k;
+  PyArrayObject *parray, *iarray, *sarray; 
+  int i,n,N,dims[2];
+  double xi;
+  int ii,j,k;
 
-	if (!PyArg_ParseTuple(args, "iO!O!:indsum", 
-		&N,
-		&PyArray_Type, &iarray,
-		&PyArray_Type, &parray)
-		) 
-		{return NULL;}
-		
-	if (parray->nd > 2) {
-		PyErr_SetString(PyExc_ValueError,"parray should be no more than 2d");
-		return NULL;
-		}
+  if (!PyArg_ParseTuple(args, "iO!O!:indsum", 
+    &N,
+    &PyArray_Type, &iarray,
+    &PyArray_Type, &parray)
+    ) 
+    {return NULL;}
+    
+  if (parray->nd > 2) {
+    PyErr_SetString(PyExc_ValueError,"parray should be no more than 2d");
+    return NULL;
+    }
 
-	if (parray->nd ==1) 
-		k=1;
-		else 
-		k=parray->dimensions[1];
-		
-	if (iarray->nd !=1 ) {
-		PyErr_SetString(PyExc_ValueError,"iarray needs to be 1d");
-		return NULL;
-		}
+  if (parray->nd ==1) 
+    k=1;
+    else 
+    k=parray->dimensions[1];
+    
+  if (iarray->nd !=1 ) {
+    PyErr_SetString(PyExc_ValueError,"iarray needs to be 1d");
+    return NULL;
+    }
 
-	if (parray->dimensions[0] != iarray->dimensions[0]) {
-		PyErr_SetString(PyExc_ValueError,"parray and iarray need to be of same length");
-		return NULL;
-		}
+  if (parray->dimensions[0] != iarray->dimensions[0]) {
+    PyErr_SetString(PyExc_ValueError,"parray and iarray need to be of same length");
+    return NULL;
+    }
 
-	if (parray->descr->type_num != NPY_DOUBLE) {
-		PyErr_SetString(PyExc_ValueError,"parray should be floats");
-		return NULL;
-		}
-	
-	if (iarray->descr->type_num != NPY_LONG && iarray->descr->type_num != NPY_INT) {
-		PyErr_SetString(PyExc_ValueError,"iarray should be integers");
-		return NULL;
-		}
+  if (parray->descr->type_num != NPY_DOUBLE) {
+    PyErr_SetString(PyExc_ValueError,"parray should be floats");
+    return NULL;
+    }
+  
+  if (iarray->descr->type_num != NPY_LONG && iarray->descr->type_num != NPY_INT) {
+    PyErr_SetString(PyExc_ValueError,"iarray should be integers");
+    return NULL;
+    }
 
-		
-		/*N=max(iarray)+1;*/
+    
+    /*N=max(iarray)+1;*/
 
-		dims[0]=N;
-		dims[1]=k;
+    dims[0]=N;
+    dims[1]=k;
 
-		sarray =(PyArrayObject *) PyArray_FromDims(2,dims,NPY_DOUBLE);
+    sarray =(PyArrayObject *) PyArray_FromDims(2,dims,NPY_DOUBLE);
 
-		for (i=0;i<N;i++){
-			for (j=0;j<k;j++) {
-			*((double *)(sarray->data + i*sarray->strides[0] + j*sarray->strides[1]))=0.0;
-			}
-		}
+    for (i=0;i<N;i++){
+      for (j=0;j<k;j++) {
+      *((double *)(sarray->data + i*sarray->strides[0] + j*sarray->strides[1]))=0.0;
+      }
+    }
 
-		n=parray->dimensions[0];
+    n=parray->dimensions[0];
 
-		for (i=0;i<n;i++) {
-		
-			ii=*((int *)(iarray->data + i*iarray->strides[0]));
-				for (j=0;j<k;j++){
-					xi=*((double *)(parray->data + i*parray->strides[0] + j*parray->strides[1] ));
-					*((double *)(sarray->data + ii*sarray->strides[0]  + j*sarray->strides[1] ))+=xi;
-				}
-			}
-		
-			return PyArray_Return(sarray);
-	
-	}
+    for (i=0;i<n;i++) {
+    
+      ii=*((int *)(iarray->data + i*iarray->strides[0]));
+        for (j=0;j<k;j++){
+          xi=*((double *)(parray->data + i*parray->strides[0] + j*parray->strides[1] ));
+          *((double *)(sarray->data + ii*sarray->strides[0]  + j*sarray->strides[1] ))+=xi;
+        }
+      }
+    
+      return PyArray_Return(sarray);
+  
+  }
 
 
 
 static PyMethodDef xmod_methods[] = {
-  	{"indsum",indsum, METH_VARARGS}, 
-	{"xposterior",xposterior,METH_VARARGS},
-	{"xfactorialposterior",xfactorialposterior,METH_VARARGS},
-	{NULL, NULL}     /* required ending of the method table */
+    {"indsum",indsum, METH_VARARGS}, 
+  {"xposterior",xposterior,METH_VARARGS},
+  {"xfactorialposterior",xfactorialposterior,METH_VARARGS},
+  {NULL, NULL}     /* required ending of the method table */
 };
 
 
 PyMODINIT_FUNC initxmod()
 {
-  	Py_InitModule("xmod", xmod_methods);
-	import_array();   /* required NumPy initialization */
+    Py_InitModule("xmod", xmod_methods);
+  import_array();   /* required NumPy initialization */
 }
 
 
