@@ -1,8 +1,11 @@
 import scipy
 import scipy.special as Sp
 from numpy import *
+import numpy as np
 import xmod
 import time
+import logging
+import tempfile
 
 class freyr:
     def __init__(self,data,K=100):
@@ -95,6 +98,7 @@ class freyr:
             for i in flipud(argsort(self.phi[j])[-k:]):
                 Lphi.append((self.vocab_labels[i],self.phi[j,i])),
             for i in flipud(argsort(self.psi[j])[-k:]):
+                continue
                 Lpsi.append((self.feature_labels[i],self.psi[j,i])),
             self.latent_labels.append((Lphi,Lpsi))
 
@@ -105,10 +109,10 @@ class freyr:
             k+=1
             print str(k)+': ',
             for i in l[0]:
-                print '%s(%2.2f)' % (i[0],i[1]),
+                print '%s(%2.4f)' % (i[0],i[1]),
             print "\n",
             for j in l[1]:
-                print '%s(%2.2f)' % (j[0],j[1]),
+                print '%s(%2.4f)' % (j[0],j[1]),
             print "\n\n",
     
     def getfeaturelabels(self,file):
@@ -273,40 +277,68 @@ def betarnd_array(a,b):
 
 
 def dataread(file):
-        # so far recognizes two data-types, lda and combinatorial lda
-        data_file=open(file).readlines()
-        
-        mx=0    
-        for group in data_file:
-            for item in group.split():
-                if len(item.split(":")[0].split(",")) > mx:
-                    mx=len(item.split(":")[0].split(","))
+    return np.load(file).T
 
+    tmpfile = open("binary.dat", "wb")
 
-        data=[]
-        group_j=0
-        for group in data_file:
-            item_i=0
-            for item in group.split():
-                for i in xrange(int(item.split(":")[1])):
-                    if mx==1:
-                        # regular old lda format 
-                        data.append([group_j,item_i,int(item.split(":")[0])])
-                    elif mx==2:
-                        # combinatorial lda format
-                        x=[int(i) for i in  item.split(":")[0].split(",")]
-                        
-                        if len(x)==1:
-                            # possible blanks, if so assume missing value is second one equal to zero
-                            # we reserve 0 as the marker for blank, and so augment each index for second variable by 1
-                            data.append([group_j,item_i,x[0],0])
-                        else:
-                            data.append([group_j,item_i,x[0],x[1]+1])
-                    item_i+=1
-            group_j+=1
-        print array(data,int)
-        return array(data,int).T
+    #tmpfile = tempfile.NamedTemporaryFile(delete=False)
+    #print tmpfile.name
 
+    tmpfile.write("\x93\x4e\x55\x4d\x50\x59\x01\x00\x46\x00")
+
+    data_file=open(file)
+    dimensions = 1
+    total_count = 0
+    logging.warning("Starting to read data (pass 1)...")
+    for doc_id, doc in enumerate(data_file):
+        for item in itersplit(doc, " "):
+            splitted = map(int, item.strip().split(":"))
+            total_count += splitted[-1]
+            if len(splitted) == 2:
+                pass
+            elif len(splitted) == 3:
+                dimensions = 2
+            else:
+                raise ValueError("Doc %d is invalid (item %d: '%s')" % (group_j, item_i, item))
+
+    data_file.close()
+
+    # okay let's go through this again
+    # start writing the header.
+    header = "{'descr': '<i8', 'fortran_order': False, 'shape': (%d, %d), }" % (total_count, dimensions + 2)
+    header = ("%-69s\x0a" % header)
+    tmpfile.write(header)
+
+    # so far recognizes two data-types, lda and combinatorial lda
+    data_file=open(file)
+    group_j=0
+
+    dimensions = 1
+    logging.warning("Starting to read data (pass 2)...")
+    for doc_id, doc in enumerate(data_file):
+        this_doc = []
+        doc_counter = 0
+        for item in itersplit(doc, " "):
+            splitted = map(int, item.strip().split(":"))
+            if len(splitted) == 2:
+                feat_id = 0
+                word_id, count = splitted
+            elif len(splitted) == 3:
+                word_id, feat_id, count = splitted
+
+            for x in xrange(count):
+                if False and dimensions == 1:
+                    a = [doc_id, doc_counter, word_id]
+                else:
+                    a = [doc_id, doc_counter, word_id, feat_id]
+                tmpfile.write("".join(map(int2bytes, a)))
+                doc_counter += 1
+
+    tmpfile.close()
+    data = np.load(tmpfile.name)
+    del tmpfile
+
+    return data.T
 
 def moment_match(data):
     """ Approximate the mean (m)  and precision (a)  of dirichlet distribution 
