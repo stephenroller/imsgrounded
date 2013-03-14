@@ -1,6 +1,5 @@
 import scipy
 import scipy.special as Sp
-from numpy import *
 import numpy as np
 import xmod
 import time
@@ -18,13 +17,13 @@ class freyr:
         self.Nj=int(self.nj.sum())
         self.K=K
 
-        self.theta=ones(self.K)/self.K
-        self.beta=ones(self.V)/self.V
-        self.gamma=ones(self.F)/self.F
+        self.theta=np.ones(self.K)/self.K
+        self.beta=np.ones(self.V)/self.V
+        self.gamma=np.ones(self.F)/self.F
 
-        self.phi=clip(dirichletrnd(self.beta,self.K),1e-10,1-1e-10);
-        self.psi=clip(dirichletrnd(self.gamma,self.K),1e-10,1-1e-10);
-        self.pi=clip(dirichletrnd(self.theta,self.J),1e-10,1-1e-10);
+        self.phi=np.clip(dirichletrnd(self.beta,self.K),1e-10,1-1e-10);
+        self.psi=np.clip(dirichletrnd(self.gamma,self.K),1e-10,1-1e-10);
+        self.pi=np.clip(dirichletrnd(self.theta,self.J),1e-10,1-1e-10);
 
         self.phiprior=dirichlet()
         self.psiprior=dirichlet()
@@ -37,7 +36,7 @@ class freyr:
 
     def mcmc(self):
         iteration=0
-        self.ll=empty(self.mcmc_iteration_max,float)
+        self.ll=np.empty(self.mcmc_iteration_max,float)
 
         while iteration<self.mcmc_iteration_max:
             self.fast_posterior()
@@ -54,49 +53,48 @@ class freyr:
 
 
     def fast_posterior(self):
-
-        vpsi=hstack(( ones((self.K,1)),self.psi))
+        vpsi=np.hstack(( np.ones((self.K,1)),self.psi))
         self.Rphi,self.Rpsi,self.S,Z=xmod.xfactorialposterior(self.phi,vpsi,self.pi,self.data,self.Nj,self.V,self.F+1,self.J,self.K)
 
-        phi=clip(dirichletrnd_array(self.Rphi+self.beta),1e-10,1-1e-10);
-        psi=clip(dirichletrnd_array(self.Rpsi[:,1:]+self.gamma),1e-10,1-1e-10);
-        vpi=clip(dirichletrnd_array(self.S+self.theta),1e-10,1-1e-10)
+        phi=np.clip(dirichletrnd_array(self.Rphi+self.beta),1e-10,1-1e-10);
+        psi=np.clip(dirichletrnd_array(self.Rpsi[:,1:]+self.gamma),1e-10,1-1e-10);
+        vpi=np.clip(dirichletrnd_array(self.S+self.theta),1e-10,1-1e-10)
 
-        self.phi=ascontiguousarray((phi.T/phi.sum(1)).T)
-        self.psi=ascontiguousarray((psi.T/psi.sum(1)).T)
-        self.pi=ascontiguousarray((vpi.T/vpi.sum(1)).T)
+        self.phi=np.ascontiguousarray((phi.T/phi.sum(1)).T)
+        self.psi=np.ascontiguousarray((psi.T/psi.sum(1)).T)
+        self.pi=np.ascontiguousarray((vpi.T/vpi.sum(1)).T)
 
         self.pseudologlikelihood=Z
 
     def beta_a_mle(self):
         self.phiprior.observation(self.phi)
         self.phiprior.a=self.beta.sum()
-        self.phiprior.m=ones(self.V)/self.V
+        self.phiprior.m=np.ones(self.V)/self.V
         self.phiprior.a_update()
         self.beta=self.phiprior.a*self.phiprior.m
 
     def theta_a_mle(self):
         self.piprior.observation(self.pi)
         self.piprior.a=self.theta.sum()
-        self.piprior.m=ones(self.K)/self.K
+        self.piprior.m=np.ones(self.K)/self.K
         self.piprior.a_update()
         self.theta=self.piprior.a*self.piprior.m
 
     def gamma_a_mle(self):
         self.psiprior.observation(self.psi)
         self.psiprior.a=self.gamma.sum()
-        self.psiprior.m=ones(self.F)/self.F
+        self.psiprior.m=np.ones(self.F)/self.F
         self.psiprior.a_update()
         self.gamma=self.psiprior.a*self.psiprior.m
 
     def getlatentlabels(self,k=10):
         self.latent_labels=[]
-        for j in arange(self.K):
+        for j in np.arange(self.K):
             Lphi=[]
             Lpsi=[]
-            for i in flipud(argsort(self.phi[j])[-k:]):
+            for i in np.flipud(np.argsort(self.phi[j])[-k:]):
                 Lphi.append((self.vocab_labels[i],self.phi[j,i])),
-            for i in flipud(argsort(self.psi[j])[-k:]):
+            for i in np.flipud(np.argsort(self.psi[j])[-k:]):
                 continue
                 Lpsi.append((self.feature_labels[i],self.psi[j,i])),
             self.latent_labels.append((Lphi,Lpsi))
@@ -129,10 +127,10 @@ class dirichlet:
         self.mcmc_iteration_max=25
 
     def observation(self,data):
-        self.data=clip(data,1e-10,1-1e-10)
+        self.data=np.clip(data,1e-10,1-1e-10)
         self.J=data.shape[0]
         self.K=data.shape[1]
-        self.logdatamean=log(self.data).mean(axis=0)
+        self.logdatamean=np.log(self.data).mean(axis=0)
 
     def initialize(self):
         self.a,self.m=moment_match(self.data)
@@ -141,17 +139,17 @@ class dirichlet:
         return self.J*(psi(self.a)-psi(self.a*self.m)  + self.logdatamean)
 
     def loglikelihood(self):
-        return self.J*(Sp.gammaln(self.a)-Sp.gammaln(self.a*self.m).sum()+dot(self.a*self.m-1,self.logdatamean))
+        return self.J*(Sp.gammaln(self.a)-Sp.gammaln(self.a*self.m).sum()+np.dot(self.a*self.m-1,self.logdatamean))
 
     def a_new(self):
-        d1=self.J*(psi(self.a) - dot(self.m,psi(self.a*self.m)) + dot(self.m,self.logdatamean));
-        d2=self.J*(psi(self.a,1) - dot(self.m**2,psi(self.a*self.m,1)));
+        d1=self.J*(psi(self.a) - np.dot(self.m,psi(self.a*self.m)) + np.dot(self.m,self.logdatamean));
+        d2=self.J*(psi(self.a,1) - np.dot(self.m**2,psi(self.a*self.m,1)));
         self.a= (1/self.a+d1/d2/self.a**2)**-1
 
     def m_new(self):
-        digamma_am= self.logdatamean-dot(self.m,self.logdatamean-psi(self.a*self.m))
+        digamma_am= self.logdatamean-np.dot(self.m,self.logdatamean-psi(self.a*self.m))
         am=inv_digamma(digamma_am)
-        self.m=am/sum(am)
+        self.m=am/np.sum(am)
 
 
     def a_update(self):
@@ -203,13 +201,13 @@ class dirichlet:
         iteration=0
 
         while iteration<mcmc_iteration_max:
-            theta_proposed=theta_current*(1+random.uniform(-self.mcmc_stepsize,self.mcmc_stepsize,self.K))
+            theta_proposed=theta_current*(1+np.random.uniform(-self.mcmc_stepsize,self.mcmc_stepsize,self.K))
 
             self.a=theta_proposed.sum()
             self.m=theta_proposed/self.a
             ll_proposed=self.loglikelihood()
 
-            if exp(ll_proposed-ll_current)>random.rand():
+            if exp(ll_proposed-ll_current)>np.random.rand():
                 ll_current=ll_proposed
                 self.switch[iteration]=1
                 theta_current=theta_proposed
@@ -235,7 +233,7 @@ def doccounts(wordnumcol):
 
 
 def norm(x):
-    return sqrt(sum(x**2))
+    return sqrt(np.sum(x**2))
 
 
 def vdiff(n,p):
@@ -243,48 +241,46 @@ def vdiff(n,p):
 
 
 def slice_array_by_cols(p,ind):
-    return ascontiguousarray(p[:,ind])
+    return np.ascontiguousarray(p[:,ind])
 
 
 def logsumexp(A,axis_n=1):
     """ logsumexp - summing along rows """
     if A.ndim==1:
         M=A.max()
-        return M+log(exp((A.T-M).T).sum())
+        return M+np.log(exp((A.T-M).T).sum())
     elif axis_n==1:
         M=A.max(axis=1)
-        return M+log(exp((A.T-M).T).sum(axis=1))
+        return M+np.log(exp((A.T-M).T).sum(axis=1))
     else:
         M=A.max(axis=0)
-        return M+log(exp(A-M).sum(axis=0))
+        return M+np.log(exp(A-M).sum(axis=0))
 
 
 def logharmonic(ll):
-    return log(len(ll))-logsumexp(-ll)
+    return np.log(len(ll))-logsumexp(-ll)
 
 # some random number generators
 def dirichletrnd(a,J):
-    g=random.gamma(a,size=(J,shape(a)[0]))
-    return (g.T/sum(g,1)).T
+    g=np.random.gamma(a,size=(J,np.shape(a)[0]))
+    return (g.T/np.sum(g,1)).T
 
 def multinomialrnd(p,n):
-    return argmax(random.uniform(0,1,(n,1))  <tile(cumsum(p),(n,1)),axis=1)
+    return argmax(np.random.uniform(0,1,(n,1))  <tile(cumsum(p),(n,1)),axis=1)
 
 
 def multinomialrnd_array(p,N=1):
     """ Each row of p is a probability distribution. Draw single sample from each."""
-    return argmax(random.uniform(0,1,(shape(p)[0],1))  <cumsum(p,1),1)
-    """ to be able to sample N times from each distribution (i.e. each row of p) use the following (we think) """
-    #return argmax(random.uniform(0,1,(N,p.shape[0],1))<tile(cumsum(p,1),(N,1,1)),2)
+    return argmax(np.random.uniform(0,1,(np.shape(p)[0],1))  <cumsum(p,1),1)
 
 
 def dirichletrnd_array(a):
-    g=random.gamma(a)
-    return (g.T/sum(g,1)).T
+    g=np.random.gamma(a)
+    return (g.T/np.sum(g,1)).T
 
 def betarnd_array(a,b):
-        a_sample=random.gamma(a)
-        b_sample=random.gamma(b)
+        a_sample=np.random.gamma(a)
+        b_sample=np.random.gamma(b)
         return a_sample/(a_sample+b_sample)
 
 def itersplit(s, sub):
@@ -386,16 +382,16 @@ def moment_match(data):
     a is given by Ronning (1989) formula
     """
     m=data.mean(axis=0)
-    s=log(m*(1-m)/var(data,0)-1).sum()
+    s=np.log(m*(1-m)/var(data,0)-1).sum()
     return exp(s/(data.shape[1]-1)),m
 
 def psi(x,d=0):
-    if type(x)==ndarray:
+    if type(x)==np.ndarray:
         s=x.shape
         x=x.flatten()
         n=len(x)
 
-        y=empty(n,float)
+        y=np.empty(n,float)
         for i in xrange(n):
             y[i]=Sp.polygamma(d,x[i])
 
