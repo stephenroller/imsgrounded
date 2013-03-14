@@ -126,15 +126,16 @@ class dirichlet:
         self.a,self.m=moment_match(self.data)
 
     def loglikelihood_gradient(self):
-        return self.J*(xmod.digamma(self.a)-psi(self.a*self.m)  + self.logdatamean)
+        return self.J*(xmod.digamma(self.a)-xmod.vdigamma(self.a*self.m)  + self.logdatamean)
 
     def loglikelihood(self):
         return self.J*(Sp.gammaln(self.a)-Sp.gammaln(self.a*self.m).sum()+np.dot(self.a*self.m-1,self.logdatamean))
 
     def a_new(self):
-        d1=self.J*(xmod.digamma(self.a) - np.dot(self.m,psi(self.a*self.m)) + np.dot(self.m,self.logdatamean))
-        d2=self.J*(xmod.trigamma(self.a) - np.dot(self.m**2,psi(self.a*self.m,1)))
-        self.a= (1/self.a+d1/d2/self.a**2)**-1
+        am = self.a * self.m
+        d1=self.J*(xmod.digamma(self.a) - np.dot(self.m,xmod.vdigamma(am)) + np.dot(self.m,self.logdatamean))
+        d2=self.J*(xmod.trigamma(self.a) - np.dot(self.m**2,xmod.vtrigamma(am)))
+        self.a= 1/(1/self.a+d1/d2/self.a**2)
 
     def a_update(self):
         a_old=self.a
@@ -169,22 +170,6 @@ def dirichletrnd(a,J):
 def dirichletrnd_array(a):
     g=np.random.gamma(a)
     return (g.T/np.sum(g,1)).T
-
-def psi(x,d=0):
-    if d == 0:
-        f = xmod.digamma
-    else:
-        f = xmod.trigamma
-
-    s=x.shape
-    x=x.flatten()
-    n=len(x)
-
-    y=np.empty(n,float)
-    for i in xrange(n):
-        y[i] = f(x[i])
-
-    return y.reshape(s)
 
 # IO Stuff
 def itersplit(s, sub):
