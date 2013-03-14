@@ -80,7 +80,7 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   double rand_x,s,z;
   int D,J;
 
-  if (!PyArg_ParseTuple(args, "O!O!O!O!iiiii", 
+  if (!PyArg_ParseTuple(args, "O!O!O!O!iiiii",
     &PyArray_Type, &phi_array,
     &PyArray_Type, &psi_array,
     &PyArray_Type, &pi_array,
@@ -103,10 +103,10 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
 
   dims_Rphi[0]=K;
   dims_Rphi[1]=D;
-  
+
   dims_Rpsi[0]=K;
   dims_Rpsi[1]=F;
-  
+
   dims_S[0]=J;
   dims_S[1]=K;
 
@@ -119,7 +119,7 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   /* create a random number generator object */
   gsl_rng *r = gsl_rng_alloc (gsl_rng_mt19937);
 
-  /* seed the random number generator*/ 
+  /* seed the random number generator*/
   gsl_rng_set(r,time(NULL));
 
   double f_array[K];
@@ -168,7 +168,7 @@ static PyObject *xposterior(PyObject *self, PyObject *args) {
   int Nj,K,i,k,dims[1],dims_data[1],dims_kslice[1],v,g;
   double rand_x,s,z;
 
-  if (!PyArg_ParseTuple(args, "O!O!O!ii", 
+  if (!PyArg_ParseTuple(args, "O!O!O!ii",
     &PyArray_Type, &phi_array,
     &PyArray_Type, &pi_array,
     &PyArray_Type, &data_array,
@@ -180,7 +180,7 @@ static PyObject *xposterior(PyObject *self, PyObject *args) {
   /* create a random number generator object */
   gsl_rng *r = gsl_rng_alloc (gsl_rng_mt19937);
 
-  /* seed the random number generator*/ 
+  /* seed the random number generator*/
   gsl_rng_set(r,time(NULL));
 
   dims_data[0]=Nj;
@@ -228,12 +228,12 @@ static PyObject *xposterior(PyObject *self, PyObject *args) {
 
 
 static PyObject *indsum(PyObject *self, PyObject *args) {
-  PyArrayObject *parray, *iarray, *sarray; 
+  PyArrayObject *parray, *iarray, *sarray;
   int i,n,N,dims[2];
   double xi;
   int ii,j,k;
 
-  if (!PyArg_ParseTuple(args, "iO!O!:indsum", 
+  if (!PyArg_ParseTuple(args, "iO!O!:indsum",
     &N,
     &PyArray_Type, &iarray,
     &PyArray_Type, &parray)) {
