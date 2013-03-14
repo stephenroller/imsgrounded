@@ -12,6 +12,20 @@
 /* create a random number generator object */
 gsl_rng *random_number_generator;
 
+static inline float fasttrigamma(float x) {
+  float p;
+  x=x+6;
+  p=1/(x*x);
+  p=(((((0.075757575757576*p-0.033333333333333)*p+0.0238095238095238)
+       *p-0.033333333333333)*p+0.166666666666667)*p+1)/x+0.5*p;
+  int i;
+  for (i=0; i<6 ;i++) {
+    x=x-1;
+    p=1/(x*x)+p;
+  }
+  return p;
+}
+
 static PyObject* digamma(PyObject *self, PyObject *args) {
   float x;
   if (!PyArg_ParseTuple(args, "f", &x)) {
@@ -26,20 +40,6 @@ static PyObject* digamma(PyObject *self, PyObject *args) {
 
 
   return PyFloat_FromDouble(p);
-}
-
-static inline float fasttrigamma(float x) {
-  float p;
-  x=x+6;
-  p=1/(x*x);
-  p=(((((0.075757575757576*p-0.033333333333333)*p+0.0238095238095238)
-       *p-0.033333333333333)*p+0.166666666666667)*p+1)/x+0.5*p;
-  int i;
-  for (i=0; i<6 ;i++) {
-    x=x-1;
-    p=1/(x*x)+p;
-  }
-  return p;
 }
 
 
@@ -59,7 +59,7 @@ static PyObject* trigamma(PyObject *self, PyObject *args) {
   return PyFloat_FromDouble(p);
 }
 
-double lnsumexp(double xarray[], int n){
+double lnsumexp(double xarray[], int n) {
   int i;
   double x,m,y;
 
