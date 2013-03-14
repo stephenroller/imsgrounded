@@ -34,7 +34,7 @@ class freyr:
         self.mcmc_iteration_max=1e+3
         self.iteration_eps=1e-5
         self.verbose=0
-    
+
     def mcmc(self):
         iteration=0
         self.ll=empty(self.mcmc_iteration_max,float)
@@ -50,18 +50,18 @@ class freyr:
             if self.verbose:
                 logging.warning("LL[%4d] = %f" % (iteration, self.pseudologlikelihood))
             iteration+=1
-    
+
 
 
     def fast_posterior(self):
 
         vpsi=hstack(( ones((self.K,1)),self.psi))
         self.Rphi,self.Rpsi,self.S,Z=xmod.xfactorialposterior(self.phi,vpsi,self.pi,self.data,self.Nj,self.V,self.F+1,self.J,self.K)
-        
+
         phi=clip(dirichletrnd_array(self.Rphi+self.beta),1e-10,1-1e-10);
         psi=clip(dirichletrnd_array(self.Rpsi[:,1:]+self.gamma),1e-10,1-1e-10);
         vpi=clip(dirichletrnd_array(self.S+self.theta),1e-10,1-1e-10)
-        
+
         self.phi=ascontiguousarray((phi.T/phi.sum(1)).T)
         self.psi=ascontiguousarray((psi.T/psi.sum(1)).T)
         self.pi=ascontiguousarray((vpi.T/vpi.sum(1)).T)
@@ -113,10 +113,10 @@ class freyr:
             for j in l[1]:
                 print '%s(%2.4f)' % (j[0],j[1]),
             print "\n\n",
-    
+
     def getfeaturelabels(self,file):
         self.feature_labels=open(file).read().split()
-    
+
     def getvocablabels(self,file):
         self.vocab_labels=open(file).read().split()
 
@@ -133,13 +133,13 @@ class dirichlet:
         self.J=data.shape[0]
         self.K=data.shape[1]
         self.logdatamean=log(self.data).mean(axis=0)
-        
+
     def initialize(self):
         self.a,self.m=moment_match(self.data)
-    
+
     def loglikelihood_gradient(self):
         return self.J*(psi(self.a)-psi(self.a*self.m)  + self.logdatamean)
-    
+
     def loglikelihood(self):
         return self.J*(Sp.gammaln(self.a)-Sp.gammaln(self.a*self.m).sum()+dot(self.a*self.m-1,self.logdatamean))
 
@@ -153,13 +153,13 @@ class dirichlet:
         am=inv_digamma(digamma_am)
         self.m=am/sum(am)
 
-    
+
     def a_update(self):
         a_old=self.a
         self.a_new()
-        
+
         iteration=0
-        
+
         while (abs(a_old-self.a)>self.iteration_eps) and iteration<self.iteration_max:
             a_old=self.a
             self.a_new()
@@ -168,7 +168,7 @@ class dirichlet:
     def m_update(self):
         m_old=self.m
         self.m_new()
-        
+
         iteration=0
 
         while (abs(m_old-self.m).max()>self.iteration_eps) and iteration<self.iteration_max:
@@ -191,7 +191,7 @@ class dirichlet:
             self.m_update()
             iteration+=1
             #print self.loglikelihood()
-    
+
     def mcmc(self,mcmc_iteration_max=100):
 
         theta_current=self.a*self.m
@@ -262,7 +262,7 @@ def logsumexp(A,axis_n=1):
 def logharmonic(ll):
     return log(len(ll))-logsumexp(-ll)
 
-# some random number generators 
+# some random number generators
 def dirichletrnd(a,J):
     g=random.gamma(a,size=(J,shape(a)[0]))
     return (g.T/sum(g,1)).T
@@ -380,7 +380,7 @@ def dataread(file):
     return data.T
 
 def moment_match(data):
-    """ Approximate the mean (m)  and precision (a)  of dirichlet distribution 
+    """ Approximate the mean (m)  and precision (a)  of dirichlet distribution
     by moment matching.
     m is mean(data,0)
     a is given by Ronning (1989) formula
@@ -393,12 +393,12 @@ def psi(x,d=0):
     if type(x)==ndarray:
         s=x.shape
         x=x.flatten()
-        n=len(x)    
-        
+        n=len(x)
+
         y=empty(n,float)
         for i in xrange(n):
             y[i]=Sp.polygamma(d,x[i])
-        
+
         return y.reshape(s)
     #elif type(x)==int or type(x)==float:
     else:
@@ -413,7 +413,7 @@ def inv_digamma(y,niter=5):
 
     for iter in xrange(niter):
           x = x - (psi(x)-y)/psi(x,1);
-    
+
     return x
 
 
