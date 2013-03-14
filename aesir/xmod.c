@@ -6,6 +6,10 @@
 #include <time.h>
 #include <gsl/gsl_rng.h>
 
+
+/* create a random number generator object */
+gsl_rng *random_number_generator;
+
 double max(PyArrayObject *array) {
   int m,x;
   int i,n;
@@ -112,11 +116,8 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   Rpsi_array =(PyArrayObject *) PyArray_FromDims(2,dims_Rpsi,NPY_INT);
   S_array =(PyArrayObject *) PyArray_FromDims(2,dims_S,NPY_INT);
 
-  /* create a random number generator object */
-  gsl_rng *r = gsl_rng_alloc (gsl_rng_mt19937);
-
   /* seed the random number generator*/
-  gsl_rng_set(r,time(NULL));
+  gsl_rng_set(random_number_generator,time(NULL));
 
   double f_array[K];
   double p_array[K];
@@ -136,7 +137,7 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
     z=lnsumexp(f_array,K);
     Z+=z;
 
-    rand_x=gsl_rng_uniform(r);
+    rand_x = gsl_rng_uniform(random_number_generator);
     s=exp(f_array[0]-z);
 
     k = 0;
@@ -154,8 +155,6 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
 
   return Py_BuildValue("(NNNd)", Rphi_array,Rpsi_array,S_array,Z);
 
-  gsl_rng_free(r);
-
 }
 
 
@@ -167,7 +166,10 @@ static PyMethodDef xmod_methods[] = {
 
 PyMODINIT_FUNC initxmod() {
   Py_InitModule("xmod", xmod_methods);
-  import_array();   /* required NumPy initialization */
+  // required NumPy initialization */
+  import_array();
+  // initialize the RNG
+  random_number_generator = gsl_rng_alloc (gsl_rng_mt19937);
 }
 
 
