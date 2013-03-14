@@ -5,10 +5,59 @@
 #include <stdlib.h>
 #include <time.h>
 #include <gsl/gsl_rng.h>
+#include "fastapprox.h"
 
+#define MAGIC_GAMMA_CONSTANT (1.7976931348623157e+308)
 
 /* create a random number generator object */
 gsl_rng *random_number_generator;
+
+static PyObject* digamma(PyObject *self, PyObject *args) {
+  float x;
+  if (!PyArg_ParseTuple(args, "f", &x)) {
+    return NULL;
+  }
+
+  float p;
+  if (x == 0.0)
+    p = MAGIC_GAMMA_CONSTANT;
+  else
+    p = fastdigamma(x);
+
+
+  return PyFloat_FromDouble(p);
+}
+
+static inline float fasttrigamma(float x) {
+  float p;
+  x=x+6;
+  p=1/(x*x);
+  p=(((((0.075757575757576*p-0.033333333333333)*p+0.0238095238095238)
+       *p-0.033333333333333)*p+0.166666666666667)*p+1)/x+0.5*p;
+  int i;
+  for (i=0; i<6 ;i++) {
+    x=x-1;
+    p=1/(x*x)+p;
+  }
+  return p;
+}
+
+
+static PyObject* trigamma(PyObject *self, PyObject *args) {
+  float x;
+
+  if (!PyArg_ParseTuple(args, "f", &x)) {
+    return NULL;
+  }
+
+  float p;
+  if (x == 0.0)
+    p = MAGIC_GAMMA_CONSTANT;
+  else
+    p = fasttrigamma(x);
+
+  return PyFloat_FromDouble(p);
+}
 
 double lnsumexp(double xarray[], int n){
   int i;
@@ -113,8 +162,10 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
 
 
 static PyMethodDef xmod_methods[] = {
-  {"xfactorialposterior",xfactorialposterior,METH_VARARGS},
-  {NULL, NULL}     /* required ending of the method table */
+  {"digamma", digamma, METH_VARARGS},
+  {"trigamma", trigamma, METH_VARARGS},
+  {"xfactorialposterior", xfactorialposterior, METH_VARARGS},
+  {NULL, NULL} // required ending of the method table
 };
 
 

@@ -126,14 +126,14 @@ class dirichlet:
         self.a,self.m=moment_match(self.data)
 
     def loglikelihood_gradient(self):
-        return self.J*(psi(self.a)-psi(self.a*self.m)  + self.logdatamean)
+        return self.J*(xmod.digamma(self.a)-psi(self.a*self.m)  + self.logdatamean)
 
     def loglikelihood(self):
         return self.J*(Sp.gammaln(self.a)-Sp.gammaln(self.a*self.m).sum()+np.dot(self.a*self.m-1,self.logdatamean))
 
     def a_new(self):
-        d1=self.J*(psi(self.a) - np.dot(self.m,psi(self.a*self.m)) + np.dot(self.m,self.logdatamean))
-        d2=self.J*(psi(self.a,1) - np.dot(self.m**2,psi(self.a*self.m,1)))
+        d1=self.J*(xmod.digamma(self.a) - np.dot(self.m,psi(self.a*self.m)) + np.dot(self.m,self.logdatamean))
+        d2=self.J*(xmod.trigamma(self.a) - np.dot(self.m**2,psi(self.a*self.m,1)))
         self.a= (1/self.a+d1/d2/self.a**2)**-1
 
     def a_update(self):
@@ -171,19 +171,20 @@ def dirichletrnd_array(a):
     return (g.T/np.sum(g,1)).T
 
 def psi(x,d=0):
-    if type(x)==np.ndarray:
-        s=x.shape
-        x=x.flatten()
-        n=len(x)
-
-        y=np.empty(n,float)
-        for i in xrange(n):
-            y[i]=Sp.polygamma(d,x[i])
-
-        return y.reshape(s)
-    #elif type(x)==int or type(x)==float:
+    if d == 0:
+        f = xmod.digamma
     else:
-        return Sp.polygamma(d,x)
+        f = xmod.trigamma
+
+    s=x.shape
+    x=x.flatten()
+    n=len(x)
+
+    y=np.empty(n,float)
+    for i in xrange(n):
+        y[i] = f(x[i])
+
+    return y.reshape(s)
 
 # IO Stuff
 def itersplit(s, sub):
