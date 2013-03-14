@@ -5,10 +5,13 @@
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
+#include <float.h>
 #include <gsl/gsl_rng.h>
 #include "fastapprox.h"
 
-#define MAGIC_GAMMA_CONSTANT (1.7976931348623157e+308)
+//#define MAGIC_GAMMA_CONSTANT (1.7976931348623157e+308)
+#define MAGIC_GAMMA_CONSTANT FLT_MAX
+#define GAMMA_THRESH (1e-9)
 
 /* create a random number generator object */
 gsl_rng *random_number_generator;
@@ -34,7 +37,7 @@ static PyObject* digamma(PyObject *self, PyObject *args) {
   }
 
   float p;
-  if (x == 0.0)
+  if (x <= GAMMA_THRESH)
     p = MAGIC_GAMMA_CONSTANT;
   else
     p = fastdigamma(x);
@@ -52,7 +55,7 @@ static PyObject* trigamma(PyObject *self, PyObject *args) {
   }
 
   float p;
-  if (x == 0.0)
+  if (x <= GAMMA_THRESH)
     p = MAGIC_GAMMA_CONSTANT;
   else
     p = fasttrigamma(x);
@@ -70,7 +73,11 @@ static void v_digamma(char **args, npy_intp *dimensions, npy_intp *steps, void *
 
   for (i = 0; i < n; i++) {
     // BEGIN main ufunc computation
-    *((double *)out) = fastdigamma(*(double*)in);
+    tmp = *(double*)in;
+    if (tmp < GAMMA_THRESH)
+      *((double *)out) = MAGIC_GAMMA_CONSTANT;
+    else
+      *((double *)out) = fastdigamma(tmp);
     // END main ufunc computation
     in += in_step;
     out += out_step;
@@ -87,7 +94,11 @@ static void v_trigamma(char **args, npy_intp *dimensions, npy_intp *steps, void 
 
   for (i = 0; i < n; i++) {
     // BEGIN main ufunc computation
-    *((double *)out) = fasttrigamma(*(double*)in);
+    tmp = *(double*)in;
+    if (tmp < GAMMA_THRESH)
+      *((double *)out) = MAGIC_GAMMA_CONSTANT;
+    else
+      *((double *)out) = fasttrigamma(tmp);
     // END main ufunc computation
     in += in_step;
     out += out_step;

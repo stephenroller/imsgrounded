@@ -1,4 +1,5 @@
 import scipy
+import sys
 import scipy.special as Sp
 import numpy as np
 import xmod
@@ -25,11 +26,11 @@ class freyr:
         self.psi=clip(dirichletrnd(self.gamma,self.K))
         self.pi=clip(dirichletrnd(self.theta,self.J))
 
-        self.phiprior=dirichlet()
-        self.psiprior=dirichlet()
-        self.piprior=dirichlet()
+        self.phiprior = dirichlet()
+        self.psiprior = dirichlet()
+        self.piprior = dirichlet()
 
-        self.mcmc_iteration_max=1e+4
+        self.mcmc_iteration_max=1e+3
         self.verbose=0
 
     def mcmc(self):
@@ -123,7 +124,7 @@ class dirichlet:
         self.logdatamean=np.log(self.data).mean(axis=0)
 
     def initialize(self):
-        self.a,self.m=moment_match(self.data)
+        self.a, self.m = moment_match(self.data)
 
     def loglikelihood_gradient(self):
         return self.J*(xmod.digamma(self.a)-xmod.vdigamma(self.a*self.m)  + self.logdatamean)
@@ -132,10 +133,16 @@ class dirichlet:
         return self.J*(Sp.gammaln(self.a)-Sp.gammaln(self.a*self.m).sum()+np.dot(self.a*self.m-1,self.logdatamean))
 
     def a_new(self):
+        if self.a == 0:
+            self.a = 1e-9
+        #print "%.15f, %.15f" % (self.a, xmod.digamma(self.a))
         am = self.a * self.m
         d1=self.J*(xmod.digamma(self.a) - np.dot(self.m,xmod.vdigamma(am)) + np.dot(self.m,self.logdatamean))
         d2=self.J*(xmod.trigamma(self.a) - np.dot(self.m**2,xmod.vtrigamma(am)))
-        self.a= 1/(1/self.a+d1/d2/self.a**2)
+        #self.a = (1/self.a+(self.a**2)*d1/d2)**-1
+        self.a = np.reciprocal(np.reciprocal(self.a)+(d1/d2)*np.square(self.a))
+        if self.a < 0:
+            self.a = 1e-9
 
     def a_update(self):
         a_old=self.a
@@ -168,7 +175,7 @@ def dirichletrnd(a,J):
     return (g.T/np.sum(g,1)).T
 
 def dirichletrnd_array(a):
-    g=np.random.gamma(a)
+    g = np.random.gamma(a) + 1e-10
     return (g.T/np.sum(g,1)).T
 
 # IO Stuff
