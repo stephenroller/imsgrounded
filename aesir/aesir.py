@@ -123,31 +123,12 @@ class dirichlet:
         self.J=data.shape[0]
         self.K=data.shape[1]
         self.logdatamean=np.log(self.data).mean(axis=0)
-        self.logdatamean_sum = np.sum(self.logdatamean)
 
     def initialize(self):
         self.a, self.m = moment_match(self.data)
 
-    def a_new(self):
-        if self.a < 1e-308:
-            self.a = 1e-308
-        am = self.a * self.m
-        d1=self.J*(xmod.digamma(self.a) - self.m * xmod.digamma(am) + self.m * self.logdatamean_sum)
-        d2=self.J*(xmod.trigamma(self.a) - np.square(self.m) * xmod.trigamma(am))
-        self.a = np.reciprocal(np.reciprocal(self.a)+(d1/d2)*np.square(self.a))
-        if self.a < 1e-308:
-            self.a = 1e-308
-
     def a_update(self):
-        a_old=self.a
-        self.a_new()
-
-        iteration=0
-
-        while (abs(a_old-self.a)>self.iteration_eps) and iteration<self.iteration_max:
-            a_old=self.a
-            self.a_new()
-            iteration+=1
+        self.a = xmod.a_update(self.a, self.m, np.sum(self.logdatamean), self.J, self.iteration_max, self.iteration_eps)
 
 
 def doccounts(docidcol):

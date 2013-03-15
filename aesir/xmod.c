@@ -31,38 +31,40 @@ static inline float fasttrigamma(float x) {
   return p;
 }
 
-static PyObject* digamma(PyObject *self, PyObject *args) {
-  float x;
-  if (!PyArg_ParseTuple(args, "f", &x)) {
+static PyObject* a_update(PyObject *self, PyObject *args) {
+  double old_a, m, sum_logdatamean, iteration_eps;
+  int max_iter, J;
+
+  if (!PyArg_ParseTuple(args, "dddiid", &old_a, &m, &sum_logdatamean, &J, &max_iter, &iteration_eps)) {
     return NULL;
   }
 
-  float p;
-  if (x <= GAMMA_THRESH)
-    p = MAGIC_GAMMA_CONSTANT;
-  else
-    p = fastdigamma(x);
+  int i;
+  double delta = DBL_MAX;
+  double a = old_a;
+  double d1, d2, am;
+  double inva;
 
+  for (i=0; i<max_iter && delta > iteration_eps; i++) {
+    old_a = a;
+    if (a < FLT_MIN) {
+      a = FLT_MIN;
+    }
+    am = a * m;
+    d1 = J * fastdigamma(a) - m * fastdigamma(am) + m * sum_logdatamean;
+    d2 = J * fasttrigamma(a) - (m * m * fasttrigamma(am));
 
-  return PyFloat_FromDouble(p);
-}
-
-
-static PyObject* trigamma(PyObject *self, PyObject *args) {
-  float x;
-
-  if (!PyArg_ParseTuple(args, "f", &x)) {
-    return NULL;
+    inva =((1.0 / a) + (d1 / d2) * a * a);
+    a = 1.0/inva;
+    if (a < FLT_MIN) {
+      a = old_a;
+    }
+    delta = abs(old_a - a);
   }
 
-  float p;
-  if (x <= GAMMA_THRESH)
-    p = MAGIC_GAMMA_CONSTANT;
-  else
-    p = fasttrigamma(x);
-
-  return PyFloat_FromDouble(p);
+  return PyFloat_FromDouble(a);
 }
+
 
 double lnsumexp(double xarray[], int n) {
   int i;
@@ -170,8 +172,7 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
 
 
 static PyMethodDef xmod_methods[] = {
-  {"digamma", digamma, METH_VARARGS},
-  {"trigamma", trigamma, METH_VARARGS},
+  {"a_update", a_update, METH_VARARGS},
   {"xfactorialposterior", xfactorialposterior, METH_VARARGS},
   {NULL, NULL} // required ending of the method table
 };
