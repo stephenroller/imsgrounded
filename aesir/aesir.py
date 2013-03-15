@@ -56,9 +56,9 @@ class freyr:
         psi=clip(dirichletrnd_array(self.Rpsi[:,1:]+self.gamma))
         vpi=clip(dirichletrnd_array(self.S+self.theta))
 
-        self.phi=np.ascontiguousarray((phi.T/phi.sum(1)).T)
-        self.psi=np.ascontiguousarray((psi.T/psi.sum(1)).T)
-        self.pi=np.ascontiguousarray((vpi.T/vpi.sum(1)).T)
+        self.phi=row_norm(phi)
+        self.psi=row_norm(psi)
+        self.pi=row_norm(vpi)
 
         self.pseudologlikelihood=Z
 
@@ -166,11 +166,16 @@ def doccounts(docidcol):
 # some random number generators
 def dirichletrnd(a,J):
     g=np.random.gamma(a,size=(J,np.shape(a)[0]))
-    return (g.T/np.sum(g,1)).T
+    return row_norm(g)
 
 def dirichletrnd_array(a):
     g = np.random.gamma(a + 1e-9) + 1e-10
-    return (g.T/np.sum(g,1)).T
+    return row_norm(g)
+
+def row_norm(a):
+    row_sums = a.sum(axis=1)
+    a /= row_sums[:, np.newaxis]
+    return a
 
 # IO Stuff
 def itersplit(s, sub):
