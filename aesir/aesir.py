@@ -37,9 +37,9 @@ class freyr:
         self.piprior.m=1.0/self.K
 
         self.mcmc_iteration_max=1e3
-        self.verbose=0
+        self.verbose=1
 
-    def mcmc(self, cores=4):
+    def mcmc(self, cores=8):
         # need to set up for parallelization
         xmod.initialize(cores, self.K)
 
@@ -201,7 +201,7 @@ def clip(arr):
   return np.clip(arr, 1e-10, 1 - 1e-10)
 
 def dataread(file):
-    #return np.load(file).T
+    return np.load(file).T
 
     tmpfile = open("binary.dat", "wb")
 
