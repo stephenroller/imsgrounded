@@ -107,7 +107,7 @@ double lnsumexp(double xarray[], int n) {
   return m + log(y);
 }
 
-void* index_pyarray(PyArrayObject *array, int i, int j) {
+inline void* index_pyarray(PyArrayObject *array, int i, int j) {
   return (void*)(array->data + i*array->strides[0] + j*array->strides[1]);
 }
 
