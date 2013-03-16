@@ -8,6 +8,8 @@ import logging
 import tempfile
 import datetime
 
+log = np.log
+
 class freyr:
     def __init__(self,data,K=100):
         self.data=data
@@ -34,8 +36,8 @@ class freyr:
         self.piprior = dirichlet()
         self.piprior.m=1.0/self.K
 
-        self.mcmc_iteration_max=1e+3
-        self.verbose=1
+        self.mcmc_iteration_max=1e+4
+        self.verbose=0
 
     def mcmc(self):
         for iteration in xrange(int(self.mcmc_iteration_max)):
@@ -50,8 +52,10 @@ class freyr:
                 logging.warning("LL[%4d] = %f, took %s" % (iteration, self.pseudologlikelihood, timediff))
 
     def fast_posterior(self):
-        vpsi=np.hstack(( np.ones((self.K,1)),self.psi))
-        self.Rphi,self.Rpsi,self.S,Z=xmod.xfactorialposterior(self.phi,vpsi,self.pi,self.data,self.Nj,self.V,self.F+1,self.J,self.K)
+        logvpsi=np.hstack(( np.zeros((self.K,1)),log(self.psi)))
+        logphi = log(self.phi)
+        logpi = log(self.pi)
+        self.Rphi,self.Rpsi,self.S,Z=xmod.xfactorialposterior(logphi,logvpsi,logpi,self.data,self.Nj,self.V,self.F+1,self.J,self.K)
         phi=clip(dirichletrnd_array(self.Rphi+self.beta))
         psi=clip(dirichletrnd_array(self.Rpsi[:,1:]+self.gamma))
         vpi=clip(dirichletrnd_array(self.S+self.theta))

@@ -87,7 +87,7 @@ double lnsumexp(double xarray[], int n) {
 }
 
 static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
-  PyArrayObject *phi_array,*psi_array,*pi_array,*data_array,*x_array,*Rphi_array,*Rpsi_array,*S_array;
+  PyArrayObject *logphi_array,*logpsi_array,*logpi_array,*data_array,*x_array,*Rphi_array,*Rpsi_array,*S_array;
   int Nj,F,K,i,k,v,g,f;
   double rand_x,s,z;
   int D,J;
@@ -95,9 +95,9 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   int lastv = INT_MAX, lastf = INT_MAX, lastg = INT_MAX;
 
   if (!PyArg_ParseTuple(args, "O!O!O!O!iiiii",
-    &PyArray_Type, &phi_array,
-    &PyArray_Type, &psi_array,
-    &PyArray_Type, &pi_array,
+    &PyArray_Type, &logphi_array,
+    &PyArray_Type, &logpsi_array,
+    &PyArray_Type, &logpi_array,
     &PyArray_Type, &data_array,
     &Nj,
     &D,
@@ -137,9 +137,9 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
       // got here, so we couldn't reuse it.
       for (k=0; k<K; k++) {
         f_array[k] =
-            log(*((double *)(phi_array->data + k*phi_array->strides[0] + v*phi_array->strides[1]))) +
-            log(*((double *)(psi_array->data + k*psi_array->strides[0] + f*psi_array->strides[1]))) +
-            log(*((double *)(pi_array->data +  g*pi_array->strides[0] +  k*pi_array->strides[1])));
+            *((double *)(logphi_array->data + k*logphi_array->strides[0] + v*logphi_array->strides[1])) +
+            *((double *)(logpsi_array->data + k*logpsi_array->strides[0] + f*logpsi_array->strides[1])) +
+            *((double *)(logpi_array->data +  g*logpi_array->strides[0] +  k*logpi_array->strides[1]));
       }
 
       lastv = v;
