@@ -205,25 +205,16 @@ def dataread(file):
     tmpfile.write("\x93\x4e\x55\x4d\x50\x59\x01\x00\x46\x00")
 
     data_file=open(file)
-    dimensions = 2
-    total_count = 0
+    row_count = 0
     logging.warning("Starting to read data (pass 1)...")
     for doc_id, doc in enumerate(data_file):
         for item in itersplit(doc, " "):
-            splitted = parse_item(item)
-            total_count += splitted[-1]
-            if len(splitted) == 2:
-                pass
-            elif len(splitted) == 3:
-                dimensions = 2
-            else:
-                raise ValueError("Doc %d is invalid (item %d: '%s')" % (group_j, item_i, item))
-
+            row_count += 1
     data_file.close()
 
     # okay let's go through this again
     # start writing the header.
-    header = "{'descr': '<i8', 'fortran_order': False, 'shape': (%d, %d), }" % (total_count, dimensions + 1)
+    header = "{'descr': '<i8', 'fortran_order': False, 'shape': (%d, %d), }" % (row_count, 4)
     header = ("%-69s\x0a" % header)
     tmpfile.write(header)
 
@@ -242,12 +233,8 @@ def dataread(file):
             elif len(splitted) == 3:
                 word_id, feat_id, count = splitted
 
-            for x in xrange(count):
-                if False and dimensions == 1:
-                    a = [doc_id, word_id]
-                else:
-                    a = [doc_id, word_id, feat_id]
-                tmpfile.write("".join(map(int2bytes, a)))
+            a = [doc_id, word_id, feat_id, count]
+            tmpfile.write("".join(map(int2bytes, a)))
 
     tmpfile.close()
     data = np.load(tmpfile.name)

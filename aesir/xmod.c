@@ -88,11 +88,9 @@ double lnsumexp(double xarray[], int n) {
 
 static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   PyArrayObject *logphi_array,*logpsi_array,*logpi_array,*data_array,*x_array,*Rphi_array,*Rpsi_array,*S_array;
-  int Nj,F,K,i,k,v,g,f;
+  int Nj,F,K,i,k,v,g,f,c,ci;
   double rand_x,s,z;
   int D,J;
-
-  int lastv = INT_MAX, lastf = INT_MAX, lastg = INT_MAX;
 
   if (!PyArg_ParseTuple(args, "O!O!O!O!iiiii",
     &PyArray_Type, &logphi_array,
@@ -130,39 +128,35 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
     f=*((int *)(data_array->data + 2*data_array->strides[0] + i*data_array->strides[1]));
     // docid
     g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]));
+    // count
+    c=*((int *)(data_array->data + 3*data_array->strides[0] + i*data_array->strides[1]));
 
-    // if the last v, g and f are all the same, then this
-    // next calculation will be the same, so let's reuse it.
-    if (!(v == lastv && g == lastg && f == lastf)) {
-      // got here, so we couldn't reuse it.
-      for (k=0; k<K; k++) {
-        f_array[k] =
-            *((double *)(logphi_array->data + k*logphi_array->strides[0] + v*logphi_array->strides[1])) +
-            *((double *)(logpsi_array->data + k*logpsi_array->strides[0] + f*logpsi_array->strides[1])) +
-            *((double *)(logpi_array->data +  g*logpi_array->strides[0] +  k*logpi_array->strides[1]));
-      }
-
-      lastv = v;
-      lastg = g;
-      lastf = f;
-
-      z = lnsumexp(f_array, K);
-      s = 0;
-      for (k = 0; k<K; k++) {
-        s += exp(f_array[k] - z);
-        sz_array[k] = s;
-      }
+    for (k=0; k<K; k++) {
+      f_array[k] =
+          *((double *)(logphi_array->data + k*logphi_array->strides[0] + v*logphi_array->strides[1])) +
+          *((double *)(logpsi_array->data + k*logpsi_array->strides[0] + f*logpsi_array->strides[1])) +
+          *((double *)(logpi_array->data +  g*logpi_array->strides[0] +  k*logpi_array->strides[1]));
     }
 
-    Z += z;
 
-    rand_x = gsl_rng_uniform(random_number_generator);
-    /* sample from exp(f_array[0]-z) */
-    for (k=0; k < K && rand_x >= sz_array[k]; k++);
+    z = lnsumexp(f_array, K);
+    s = 0;
+    for (k = 0; k<K; k++) {
+      s += exp(f_array[k] - z);
+      sz_array[k] = s;
+    }
 
-    *((int *)(Rphi_array->data + k*Rphi_array->strides[0] + v*Rphi_array->strides[1] ))+=1;
-    *((int *)(Rpsi_array->data + k*Rpsi_array->strides[0] + f*Rpsi_array->strides[1] ))+=1;
-    *((int *)(S_array->data + g*S_array->strides[0] + k*S_array->strides[1] ))+=1;
+    for (ci=0; ci<c; ci++) {
+      Z += z;
+
+      rand_x = gsl_rng_uniform(random_number_generator);
+      /* sample from exp(f_array[0]-z) */
+      for (k=0; k < K && rand_x >= sz_array[k]; k++);
+
+      *((int *)(Rphi_array->data + k*Rphi_array->strides[0] + v*Rphi_array->strides[1] ))+=1;
+      *((int *)(Rpsi_array->data + k*Rpsi_array->strides[0] + f*Rpsi_array->strides[1] ))+=1;
+      *((int *)(S_array->data + g*S_array->strides[0] + k*S_array->strides[1] ))+=1;
+    }
 
   }
 
