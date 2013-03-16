@@ -36,10 +36,13 @@ class freyr:
         self.piprior = dirichlet()
         self.piprior.m=1.0/self.K
 
-        self.mcmc_iteration_max=1e+4
+        self.mcmc_iteration_max=1e3
         self.verbose=0
 
-    def mcmc(self):
+    def mcmc(self, cores=4):
+        # need to set up for parallelization
+        xmod.initialize(cores, self.K)
+
         for iteration in xrange(int(self.mcmc_iteration_max)):
             last_time = datetime.datetime.now()
             self.fast_posterior()
@@ -51,11 +54,14 @@ class freyr:
                 timediff = datetime.datetime.now() - last_time
                 logging.warning("LL[%4d] = %f, took %s" % (iteration, self.pseudologlikelihood, timediff))
 
+        # have to clean up memory
+        xmod.finalize()
+
     def fast_posterior(self):
         logvpsi=np.hstack(( np.zeros((self.K,1)),log(self.psi)))
         logphi = log(self.phi)
         logpi = log(self.pi)
-        self.Rphi,self.Rpsi,self.S,Z=xmod.xfactorialposterior(logphi,logvpsi,logpi,self.data,self.Nj,self.V,self.F+1,self.J,self.K)
+        self.Rphi,self.Rpsi,self.S,Z=xmod.xfactorialposterior(logphi,logvpsi,logpi,self.data,self.Nj,self.V,self.F+1,self.J)
         phi=clip(dirichletrnd_array(self.Rphi+self.beta))
         psi=clip(dirichletrnd_array(self.Rpsi[:,1:]+self.gamma))
         vpi=clip(dirichletrnd_array(self.S+self.theta))

@@ -8,14 +8,35 @@
 #include <float.h>
 #include <limits.h>
 #include <gsl/gsl_rng.h>
+#include <pthread.h>
 #include "fastapprox.h"
 
-//#define MAGIC_GAMMA_CONSTANT (1.7976931348623157e+308)
 #define MAGIC_GAMMA_CONSTANT FLT_MAX
 #define GAMMA_THRESH (1e-9)
 
-/* create a random number generator object */
-gsl_rng *random_number_generator;
+// thread trackers
+pthread_t* thread_ids;
+// and mutex locks, one per topic (K)
+pthread_mutex_t* locks;
+
+// we'll need to pass thread parameters around
+typedef struct {
+  int tid;
+  int Nj;
+  double* Z_array;
+  PyArrayObject *logphi;
+  PyArrayObject *logpsi;
+  PyArrayObject *logpi;
+  PyArrayObject *data;
+  PyArrayObject *Rphi;
+  PyArrayObject *Rpsi;
+  PyArrayObject *S;
+} thread_params;
+
+// need these for parallelization
+int NUM_CORES;
+int NUM_TOPICS;
+
 
 static inline float fasttrigamma(float x) {
   float p;
@@ -86,88 +107,167 @@ double lnsumexp(double xarray[], int n) {
   return m + log(y);
 }
 
-static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
-  PyArrayObject *logphi_array,*logpsi_array,*logpi_array,*data_array,*x_array,*Rphi_array,*Rpsi_array,*S_array;
-  int Nj,F,K,i,k,v,g,f,c,ci;
-  double rand_x,s,z;
-  int D,J;
+void* index_pyarray(PyArrayObject *array, int i, int j) {
+  return (void*)(array->data + i*array->strides[0] + j*array->strides[1]);
+}
 
-  if (!PyArg_ParseTuple(args, "O!O!O!O!iiiii",
-    &PyArray_Type, &logphi_array,
-    &PyArray_Type, &logpsi_array,
-    &PyArray_Type, &logpi_array,
-    &PyArray_Type, &data_array,
-    &Nj,
-    &D,
-    &F,
-    &J,
-    &K)) {
-      return NULL;
-  }
-
-  int dims_Rphi[2] = {K, D};
-  int dims_Rpsi[2] = {K, F};
-  int dims_S[2] = {J, K};
-
-  double Z = 0;
-
-  Rphi_array =(PyArrayObject *) PyArray_FromDims(2,dims_Rphi,NPY_INT);
-  Rpsi_array =(PyArrayObject *) PyArray_FromDims(2,dims_Rpsi,NPY_INT);
-  S_array =(PyArrayObject *) PyArray_FromDims(2,dims_S,NPY_INT);
+void* threaded_posterier_chunk(void* args) {
+  thread_params* tp = (thread_params*)args;
 
   /* seed the random number generator*/
+  gsl_rng *random_number_generator;
+  random_number_generator = gsl_rng_alloc (gsl_rng_mt19937);
   gsl_rng_set(random_number_generator,time(NULL));
 
-  double f_array[K];
-  double sz_array[K];
+  double f_array[NUM_TOPICS];
+  double sz_array[NUM_TOPICS];
 
-  for (i=0; i<Nj; i++) {
+  double z, s, rand_x;
+  int i, v, f, g, c, k, ci;
+
+  for (i=tp->tid; i < tp->Nj; i+=NUM_CORES) {
     // vocab item
-    v=*((int *)(data_array->data + 1*data_array->strides[0] + i*data_array->strides[1]));
+    v=*((int *)index_pyarray(tp->data, 1, i));
     // feature item
-    f=*((int *)(data_array->data + 2*data_array->strides[0] + i*data_array->strides[1]));
+    f=*((int *)index_pyarray(tp->data, 2, i));
     // docid
-    g=*((int *)(data_array->data + 0*data_array->strides[0] + i*data_array->strides[1]));
+    g=*((int *)index_pyarray(tp->data, 0, i));
     // count
-    c=*((int *)(data_array->data + 3*data_array->strides[0] + i*data_array->strides[1]));
+    c=*((int *)index_pyarray(tp->data, 3, i));
 
-    for (k=0; k<K; k++) {
+    for (k=0; k<NUM_TOPICS; k++) {
       f_array[k] =
-          *((double *)(logphi_array->data + k*logphi_array->strides[0] + v*logphi_array->strides[1])) +
-          *((double *)(logpsi_array->data + k*logpsi_array->strides[0] + f*logpsi_array->strides[1])) +
-          *((double *)(logpi_array->data +  g*logpi_array->strides[0] +  k*logpi_array->strides[1]));
+          *((double *)index_pyarray(tp->logphi, k, v)) +
+          *((double *)index_pyarray(tp->logpsi, k, f)) +
+          *((double *)index_pyarray(tp->logpi, g, k));
     }
 
-
-    z = lnsumexp(f_array, K);
+    z = lnsumexp(f_array, NUM_TOPICS);
     s = 0;
-    for (k = 0; k<K; k++) {
+    for (k = 0; k<NUM_TOPICS; k++) {
       s += exp(f_array[k] - z);
       sz_array[k] = s;
     }
 
     for (ci=0; ci<c; ci++) {
-      Z += z;
+      tp->Z_array[tp->tid] += z;
 
       rand_x = gsl_rng_uniform(random_number_generator);
       /* sample from exp(f_array[0]-z) */
-      for (k=0; k < K && rand_x >= sz_array[k]; k++);
+      for (k=0; k < NUM_TOPICS && rand_x >= sz_array[k]; k++);
 
-      *((int *)(Rphi_array->data + k*Rphi_array->strides[0] + v*Rphi_array->strides[1] ))+=1;
-      *((int *)(Rpsi_array->data + k*Rpsi_array->strides[0] + f*Rpsi_array->strides[1] ))+=1;
-      *((int *)(S_array->data + g*S_array->strides[0] + k*S_array->strides[1] ))+=1;
+      // grab the mutex to make sure we don't do anything stupid
+      pthread_mutex_lock(&locks[k]);
+
+      *((int *)index_pyarray(tp->Rphi, k, v)) += 1;
+      *((int *)index_pyarray(tp->Rpsi, k, f)) += 1;
+      *((int *)index_pyarray(tp->S, g, k)) += 1;
+
+      // and unlock
+      pthread_mutex_unlock(&locks[k]);
     }
 
   }
 
-  return Py_BuildValue("(NNNd)", Rphi_array,Rpsi_array,S_array,Z);
+  // clean up
+  gsl_rng_free(random_number_generator);
+}
+
+static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
+  PyArrayObject *logphi,*logpsi,*logpi,*data,*Rphi,*Rpsi,*S;
+  int Nj,F,D,J,i,p,err;
+
+  if (!PyArg_ParseTuple(args, "O!O!O!O!iiii",
+    &PyArray_Type, &logphi,
+    &PyArray_Type, &logpsi,
+    &PyArray_Type, &logpi,
+    &PyArray_Type, &data,
+    &Nj,
+    &D,
+    &F,
+    &J)) {
+      return NULL;
+  }
+
+  int dims_Rphi[2] = {NUM_TOPICS, D};
+  int dims_Rpsi[2] = {NUM_TOPICS, F};
+  int dims_S[2] = {J, NUM_TOPICS};
+
+  // we're going to need to sum all of these up in the end.
+  double Z_array[NUM_CORES];
+  double Z = 0;
+
+  Rphi = (PyArrayObject *)PyArray_FromDims(2,dims_Rphi,NPY_INT);
+  Rpsi = (PyArrayObject *)PyArray_FromDims(2,dims_Rpsi,NPY_INT);
+  S = (PyArrayObject *)PyArray_FromDims(2,dims_S,NPY_INT);
+
+  // k, we've initialized out output arrays
+  // let's start the threads.
+  thread_params* parameters = (thread_params*)malloc(NUM_CORES * sizeof(thread_params));
+  for (p=0; p<NUM_CORES; p++) {
+    thread_params* tp = &(parameters[p]);
+    tp->tid = p;
+    tp->Nj = Nj;
+    tp->Z_array = Z_array;
+    tp->logphi = logphi;
+    tp->logpsi = logpsi;
+    tp->logpi = logpi;
+    tp->data = data;
+    tp->Rphi = Rphi;
+    tp->Rpsi = Rphi;
+    tp->S = S;
+
+    err = pthread_create(&(thread_ids[p]), NULL, &threaded_posterier_chunk, (void*)tp);
+  }
+
+  // sync the threads.
+  for (p=0; p<NUM_CORES; p++) {
+    pthread_join(thread_ids[p], NULL);
+  }
+  free(parameters);
+
+  // okay, all the threads are done. we need to accumulate total probability
+  for (p=0; p<NUM_CORES; p++) {
+    Z += Z_array[p];
+  }
+
+  return Py_BuildValue("(NNNd)", Rphi,Rpsi,S,Z);
 
 }
 
+static PyObject *initialize(PyObject *self, PyObject *args) {
+  if (!PyArg_ParseTuple(args, "ii", &NUM_CORES, &NUM_TOPICS)) {
+    return NULL;
+  }
+
+  // allocate the locks
+  locks = (pthread_mutex_t*) malloc(NUM_TOPICS * sizeof(pthread_mutex_t));
+  int k;
+  for (k=0; k<NUM_TOPICS; k++) {
+    if (pthread_mutex_init(&(locks[k]), NULL) != 0) {
+      printf("Lock init failed.\n");
+    }
+  }
+
+  thread_ids = (pthread_t*) malloc(NUM_CORES * sizeof(pthread_t));
+
+  return Py_BuildValue("z", NULL);
+}
+
+static PyObject *finalize(PyObject *self, PyObject *args) {
+  free(thread_ids);
+  int k;
+  for (k=0; k<NUM_TOPICS; k++) {
+    pthread_mutex_destroy(&(locks[k]));
+  }
+  free(locks);
+}
 
 static PyMethodDef xmod_methods[] = {
   {"a_update", a_update, METH_VARARGS},
   {"xfactorialposterior", xfactorialposterior, METH_VARARGS},
+  {"initialize", initialize, METH_VARARGS},
+  {"finalize", finalize, METH_NOARGS},
   {NULL, NULL} // required ending of the method table
 };
 
@@ -175,7 +275,6 @@ static PyMethodDef xmod_methods[] = {
 PyMODINIT_FUNC initxmod() {
   PyObject *mod = Py_InitModule("xmod", xmod_methods);
   // initialize the RNG
-  random_number_generator = gsl_rng_alloc (gsl_rng_mt19937);
 
   // required NumPy initialization */
   import_array();
