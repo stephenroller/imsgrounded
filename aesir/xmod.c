@@ -125,7 +125,14 @@ void* threaded_posterier_chunk(void* args) {
   double z, s, rand_x;
   int i, v, f, g, c, k, ci;
 
+  // have to manually initialize this array to 0's.
+  unsigned long topic_hits[NUM_TOPICS];
+  for (k=0; k<NUM_TOPICS; k++) topic_hits[k] = 0;
+
+
+  // okay, core algorithm
   for (i=tp->tid; i < tp->Nj; i+=NUM_CORES) {
+    // first fetch the data
     // vocab item
     v=*((int *)index_pyarray(tp->data, 1, i));
     // feature item
@@ -135,6 +142,7 @@ void* threaded_posterier_chunk(void* args) {
     // count
     c=*((int *)index_pyarray(tp->data, 3, i));
 
+    // calculate the log likelihood
     for (k=0; k<NUM_TOPICS; k++) {
       f_array[k] =
           *((double *)index_pyarray(tp->logphi, k, v)) +
@@ -149,6 +157,8 @@ void* threaded_posterier_chunk(void* args) {
       sz_array[k] = s;
     }
 
+
+    // alright, now let's count up all our topics.
     for (ci=0; ci<c; ci++) {
       tp->Z_array[tp->tid] += z;
 
@@ -156,17 +166,28 @@ void* threaded_posterier_chunk(void* args) {
       /* sample from exp(f_array[0]-z) */
       for (k=0; k < NUM_TOPICS && rand_x >= sz_array[k]; k++);
 
-      // grab the mutex to make sure we don't do anything stupid
+      topic_hits[k] += 1;
+    }
+
+    // finally we need to syncronize these hits with the other threads
+    for (k=0; k<NUM_TOPICS; k++) {
+      // don't bother syncing if there aren't updates!
+      if (topic_hits[k] == 0)
+        continue;
+
+      // grab the mutex to make sure we don't have race conditions
       pthread_mutex_lock(&locks[k]);
 
-      *((int *)index_pyarray(tp->Rphi, k, v)) += 1;
-      *((int *)index_pyarray(tp->Rpsi, k, f)) += 1;
-      *((int *)index_pyarray(tp->S, g, k)) += 1;
+      *((int *)index_pyarray(tp->Rphi, k, v)) += topic_hits[k];
+      *((int *)index_pyarray(tp->Rpsi, k, f)) += topic_hits[k];
+      *((int *)index_pyarray(tp->S, g, k)) += topic_hits[k];
+
+      // make sure we reset the counter for next iteration.
+      topic_hits[k] = 0;
 
       // and unlock
       pthread_mutex_unlock(&locks[k]);
     }
-
   }
 
   // clean up
