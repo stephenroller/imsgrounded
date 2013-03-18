@@ -111,6 +111,38 @@ inline void* index_pyarray(PyArrayObject *array, int i, int j) {
   return (void*)(array->data + i*array->strides[0] + j*array->strides[1]);
 }
 
+inline static int find_index(double* array, int n, double value) {
+  // binary search for a desired value.
+  // opposite rules of the price is right: we want closest
+  // while going over.
+  // parameters are the array, the size of the array,
+  // and the value we wish to locate.
+
+  // for simplicity of the algorithm, we're not going to
+  // do a full binary search. we're going play price is right
+  // rules, and then look one to the right.
+
+  int index = n / 2;
+  int search_width = n / 4;
+
+  while (search_width > 0) {
+    if (array[index] <= value) {
+      index += search_width;
+    } else if (array[index] > value) {
+      index -= search_width;
+    }
+    search_width /= 2;
+    if (index > 0 && search_width == 0 && array[index] > value) {
+      search_width = 1;
+    }
+    while (index < n-1 && array[index] <= value) {
+      index += 1;
+    }
+  }
+
+  return index;
+}
+
 void* threaded_posterier_chunk(void* args) {
   thread_params* tp = (thread_params*)args;
 
@@ -164,7 +196,8 @@ void* threaded_posterier_chunk(void* args) {
 
       rand_x = gsl_rng_uniform(random_number_generator);
       /* sample from exp(f_array[0]-z) */
-      for (k=0; k < NUM_TOPICS && rand_x >= sz_array[k]; k++);
+      k = find_index(sz_array, NUM_TOPICS, rand_x);
+      //for (k=0; k < NUM_TOPICS && rand_x >= sz_array[k]; k++);
 
       topic_hits[k] += 1;
     }
