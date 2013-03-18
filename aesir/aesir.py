@@ -36,11 +36,11 @@ class freyr:
         self.piprior = dirichlet()
         self.piprior.m=1.0/self.K
 
-        self.mcmc_iteration_max=1e3
-        self.verbose=1
+        self.mcmc_iteration_max = 1e3
 
     def mcmc(self, cores=8):
         # need to set up for parallelization
+        logging.debug("Calling xmod initialize.")
         xmod.initialize(cores, self.K)
 
         for iteration in xrange(int(self.mcmc_iteration_max)):
@@ -50,11 +50,11 @@ class freyr:
             self.theta_a_mle()
             self.beta_a_mle()
 
-            if self.verbose:
-                timediff = datetime.datetime.now() - last_time
-                logging.warning("LL[%4d] = %f, took %s" % (iteration, self.pseudologlikelihood, timediff))
+            timediff = datetime.datetime.now() - last_time
+            logging.debug("LL(%4d) = %f, took %s" % (iteration, self.pseudologlikelihood, timediff))
 
         # have to clean up memory
+        logging.debug("Calling xmod finalize.")
         xmod.finalize()
 
     def fast_posterior(self):
