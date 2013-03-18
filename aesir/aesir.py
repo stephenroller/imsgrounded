@@ -115,6 +115,14 @@ class freyr:
                 print '%s(%2.4f)' % (j[0],j[1]),
             print "\n\n",
 
+    def save_model(self, filename):
+        np.savez_compressed(
+                filename,
+                psi=self.psi,
+                phi=self.phi,
+                pi=self.pi,
+                k=self.K)
+
     def getfeaturelabels(self,file):
         self.feature_labels=open(file).read().split()
 
