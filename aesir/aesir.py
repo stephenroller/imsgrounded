@@ -201,7 +201,10 @@ def clip(arr):
   return np.clip(arr, 1e-10, 1 - 1e-10)
 
 def dataread(file):
-    return np.load(file).T
+    try:
+        return np.load(file).T
+    except IOError:
+        pass
 
     tmpfile = open("binary.dat", "wb")
 
