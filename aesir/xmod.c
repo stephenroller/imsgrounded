@@ -87,10 +87,14 @@ static PyObject* a_update(PyObject *self, PyObject *args) {
 }
 
 
-double lnsumexp(double xarray[], int n) {
+static inline double lnsumexp(double xarray[], int n) {
   int i;
   double x,m,y;
-
+  // we're given an array of log probabilities, and we
+  // want to return the log of the sum of those probs.
+  // finding the max and subtracting it, and adding it
+  // back in later is a really clever way of doing this
+  // while avoiding underflows.
   m = xarray[0];
   for (i=1; i<n; i++) {
     if (xarray[i] > m)
@@ -111,7 +115,7 @@ inline void* index_pyarray(PyArrayObject *array, int i, int j) {
   return (void*)(array->data + i*array->strides[0] + j*array->strides[1]);
 }
 
-inline static int find_index(double* array, int n, double value) {
+inline static int find_index(double array[], int n, double value) {
   // binary search for a desired value.
   // opposite rules of the price is right: we want closest
   // while going over.
@@ -184,6 +188,13 @@ void* threaded_posterier_chunk(void* args) {
 
     z = lnsumexp(f_array, NUM_TOPICS);
     s = 0;
+
+    // what we're building here is the conditional CDF, where
+    // sz_array[i] = p(x <= i)
+    // so sz_array (sum of z) is monotonically increasing, and
+    // at it's max should be close to 1.
+    // z is the log sum of the absolute probabilities, so
+    // we need to divide (sub in log space) total prob.
     for (k = 0; k<NUM_TOPICS; k++) {
       s += exp(f_array[k] - z);
       sz_array[k] = s;
