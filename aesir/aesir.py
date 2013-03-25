@@ -14,10 +14,9 @@ log = np.log
 class freyr:
     def __init__(self, data, K=100):
         self.data=data
+        self.J=self.data[0].max() + 1
         self.V=self.data[1].max() + 1
-        """We augment the feature indices in data[2] by one, reserving 0 for the absence of a feature"""
-        self.F=self.data[2].max()+1-1
-        self.J=self.data[0].max()+1
+        self.F=self.data[2].max() + 1
         self.nj=doccounts(data[0])
         self.Nj=int(self.nj.sum())
         self.K=K
@@ -45,15 +44,18 @@ class freyr:
         logging.debug("Calling xmod initialize.")
         xmod.initialize(cores, self.K)
 
-        for iteration in xrange(int(self.mcmc_iterations_max)):
-            last_time = datetime.datetime.now()
-            self.fast_posterior()
-            self.gamma_a_mle()
-            self.theta_a_mle()
-            self.beta_a_mle()
+        try:
+            for iteration in xrange(int(self.mcmc_iterations_max)):
+                last_time = datetime.datetime.now()
+                self.fast_posterior()
+                self.gamma_a_mle()
+                self.theta_a_mle()
+                self.beta_a_mle()
 
-            timediff = datetime.datetime.now() - last_time
-            logging.debug("LL(%4d) = %f, took %s" % (iteration, self.pseudologlikelihood, timediff))
+                timediff = datetime.datetime.now() - last_time
+                logging.debug("LL(%4d) = %f, took %s" % (iteration, self.pseudologlikelihood, timediff))
+        except KeyboardInterrupt:
+            logging.info("Terminated early. Cleaning up.")
 
         # have to clean up memory
         logging.debug("Calling xmod finalize.")
