@@ -11,9 +11,9 @@ import datetime
 log = np.log
 
 class freyr:
-    def __init__(self,data,K=100):
+    def __init__(self, data, K=100):
         self.data=data
-        self.V=self.data[1].max()+1
+        self.V=self.data[1].max() + 1
         """We augment the feature indices in data[2] by one, reserving 0 for the absence of a feature"""
         self.F=self.data[2].max()+1-1
         self.J=self.data[0].max()+1
@@ -36,7 +36,8 @@ class freyr:
         self.piprior = dirichlet()
         self.piprior.m=1.0/self.K
 
-        self.mcmc_iteration_max = 1e3
+        self.burnin = 100
+        self.mcmc_iteration_max = 1000
 
     def mcmc(self, cores=8):
         # need to set up for parallelization
@@ -212,9 +213,10 @@ def dataread(file):
     try:
         return np.load(file).T
     except IOError:
+        logging.info("Binary file has not been created; creating it.")
         pass
 
-    tmpfile = open("binary.dat", "wb")
+    tmpfile = open(file + ".npy", "wb")
 
     #tmpfile = tempfile.NamedTemporaryFile(delete=False)
     #print tmpfile.name
