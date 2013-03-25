@@ -9,7 +9,7 @@ import aesir
 logging.basicConfig(
     format="[ %(levelname)-10s %(module)-8s %(asctime)s  %(relativeCreated)-10d ]  %(message)s",
     datefmt="%H:%M:%S:%m",
-    level=logging.INFO)
+    level=logging.DEBUG)
 
 
 def main():
@@ -26,7 +26,6 @@ def main():
                         help='Number of iterations.')
     parser.add_argument('--threads', '-t', metavar='INT', default=-1, type=int,
                         help='The number of separate threads to run.')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output.')
     args = parser.parse_args()
 
     logging.info("Loading data...")
