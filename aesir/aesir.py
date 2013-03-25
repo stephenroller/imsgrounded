@@ -37,14 +37,14 @@ class freyr:
         self.piprior.m=1.0/self.K
 
         self.burnin = 100
-        self.mcmc_iteration_max = 1000
+        self.mcmc_iterations_max = 1000
 
     def mcmc(self, cores=8):
         # need to set up for parallelization
         logging.debug("Calling xmod initialize.")
         xmod.initialize(cores, self.K)
 
-        for iteration in xrange(int(self.mcmc_iteration_max)):
+        for iteration in xrange(int(self.mcmc_iterations_max)):
             last_time = datetime.datetime.now()
             self.fast_posterior()
             self.gamma_a_mle()
