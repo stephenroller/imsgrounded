@@ -14,10 +14,9 @@ log = np.log
 class freyr:
     def __init__(self, data, K=100):
         self.data=data
+        self.J=self.data[0].max() + 1
         self.V=self.data[1].max() + 1
-        """We augment the feature indices in data[2] by one, reserving 0 for the absence of a feature"""
-        self.F=self.data[2].max()+1-1
-        self.J=self.data[0].max()+1
+        self.F=self.data[2].max() + 1
         self.nj=doccounts(data[0])
         self.Nj=int(self.nj.sum())
         self.K=K
