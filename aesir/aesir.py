@@ -204,7 +204,7 @@ def clip(arr):
 
 def dataread(file):
     try:
-        return np.load(file).T
+        return np.load(file + ".npy").T
     except IOError:
         logging.info("Binary file has not been created; creating it.")
         pass
