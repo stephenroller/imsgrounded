@@ -7,6 +7,7 @@ import time
 import logging
 import tempfile
 import datetime
+import struct
 
 log = np.log
 
@@ -189,14 +190,6 @@ def itersplit(s, sub):
             yield s[pos:i]
             pos = i + len(sub)
 
-def int2bytes(i8):
-    s = ""
-    for bi in xrange(8):
-        b = i8 & 0xFF
-        s += chr(b)
-        i8 >>= 8
-    return s
-
 def parse_item(item):
     item = item.strip()
     if "," in item:
@@ -252,8 +245,8 @@ def dataread(file):
             elif len(splitted) == 3:
                 word_id, feat_id, count = splitted
 
-            a = [doc_id, word_id, feat_id, count]
-            tmpfile.write("".join(map(int2bytes, a)))
+            outs = struct.pack("<QQQQ", doc_id, word_id, feat_id, count)
+            tmpfile.write(outs)
 
     tmpfile.close()
     data = np.load(tmpfile.name)
