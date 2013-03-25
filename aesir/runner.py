@@ -24,7 +24,7 @@ def main():
                         help='Burnin samples.')
     parser.add_argument('--iterations', '-I', metavar='INT', default=1000, type=int,
                         help='Number of iterations.')
-    parser.add_argument('--threads', '-t', metavar='INT', default=-1, type=int,
+    parser.add_argument('--threads', '-t', metavar='INT', default=4, type=int,
                         help='The number of separate threads to run.')
     args = parser.parse_args()
 
@@ -36,7 +36,7 @@ def main():
     logging.info("Starting MCMC...")
     model.burnin_iterations = args.burnin
     model.mcmc_iterations_max = args.iterations
-    model.mcmc()
+    model.mcmc(cores=args.threads)
     logging.info("Finished with MCMC!")
     logging.info("Saving model to '%s'..." % args.output)
     model.save_model(args.output)
