@@ -8,6 +8,7 @@ import logging
 import tempfile
 import datetime
 import struct
+import os.path
 
 log = np.log
 
@@ -192,8 +193,11 @@ def clip(arr):
 
 def dataread(file):
     try:
-        return np.load(file + ".npy").T
-    except IOError:
+        if os.path.getmtime(file + ".npy") < os.path.getmtime(file):
+            logging.info("The corpus file is newer than the binary file. Recreating it...")
+        else:
+            return np.load(file + ".npy").T
+    except (IOError, OSError):
         logging.info("Binary file has not been created; creating it.")
         pass
 
