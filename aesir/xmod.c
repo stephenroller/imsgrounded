@@ -126,8 +126,9 @@ inline static int find_index(double array[], int n, double value) {
   // do a full binary search. we're going play price is right
   // rules, and then look one to the right.
 
-  int index = n / 2;
+  int index = (n - 1) / 2;
   int search_width = n / 4;
+  if (search_width == 0) index = 0;
 
   while (search_width > 0) {
     if (array[index] <= value) {
@@ -139,11 +140,10 @@ inline static int find_index(double array[], int n, double value) {
     if (index > 0 && search_width == 0 && array[index] > value) {
       search_width = 1;
     }
-    while (index < n-1 && array[index] <= value) {
-      index += 1;
-    }
   }
-
+  while (index < n-1 && value >= array[index]) {
+    index += 1;
+  }
   return index;
 }
 
@@ -279,7 +279,7 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
     tp->logpi = logpi;
     tp->data = data;
     tp->Rphi = Rphi;
-    tp->Rpsi = Rphi;
+    tp->Rpsi = Rpsi;
     tp->S = S;
 
     err = pthread_create(&(thread_ids[p]), NULL, &threaded_posterier_chunk, (void*)tp);
