@@ -105,31 +105,6 @@ class freyr:
         self.psiprior.a_update()
         self.gamma=self.psiprior.a*self.psiprior.m
 
-    def getlatentlabels(self,k=10):
-        self.latent_labels=[]
-        for j in np.arange(self.K):
-            Lphi=[]
-            Lpsi=[]
-            for i in np.flipud(np.argsort(self.phi[j])[-k:]):
-                Lphi.append((self.vocab_labels[i],self.phi[j,i])),
-            for i in np.flipud(np.argsort(self.psi[j])[-k:]):
-                continue
-                Lpsi.append((self.feature_labels[i],self.psi[j,i])),
-            self.latent_labels.append((Lphi,Lpsi))
-
-    def printlatentlabels(self,k=10):
-        self.getlatentlabels(k)
-        k=0
-        for l in self.latent_labels:
-            k+=1
-            print str(k)+': ',
-            for i in l[0]:
-                print '%s(%2.4f)' % (i[0],i[1]),
-            print "\n",
-            for j in l[1]:
-                print '%s(%2.4f)' % (j[0],j[1]),
-            print "\n\n",
-
     def save_model(self, filename):
         np.savez_compressed(
                 filename,
@@ -223,9 +198,6 @@ def dataread(file):
         pass
 
     tmpfile = open(file + ".npy", "wb")
-
-    #tmpfile = tempfile.NamedTemporaryFile(delete=False)
-    #print tmpfile.name
 
     tmpfile.write("\x93\x4e\x55\x4d\x50\x59\x01\x00\x46\x00")
 
