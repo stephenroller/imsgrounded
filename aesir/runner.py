@@ -31,7 +31,7 @@ def main():
     logging.info("Loading data...")
     data = aesir.dataread(args.input)
     logging.warning("Initializing model...")
-    model = aesir.freyr(data, K=args.topics)
+    model = aesir.freyr(data, K=args.topics, model_out=args.output)
     logging.info("Finished initializing.")
     logging.info("Starting MCMC...")
     model.burnin_iterations = args.burnin

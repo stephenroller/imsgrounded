@@ -11,8 +11,11 @@ import struct
 
 log = np.log
 
+# every SAVE_FREQUENCY iterations, we go ahead and output the model
+SAVE_FREQUENCY = 10
+
 class freyr:
-    def __init__(self, data, K=100):
+    def __init__(self, data, K=100, model_out=None):
         self.data=data
         self.J=self.data[0].max() + 1
         self.V=self.data[1].max() + 1
@@ -36,6 +39,8 @@ class freyr:
         self.piprior = dirichlet()
         self.piprior.m=1.0/self.K
 
+        self.model_out = model_out
+
         self.burnin = 100
         self.mcmc_iterations_max = 1000
 
@@ -54,6 +59,12 @@ class freyr:
 
                 timediff = datetime.datetime.now() - last_time
                 logging.debug("LL(%4d) = %f, took %s" % (iteration, self.pseudologlikelihood, timediff))
+
+                if (iteration + 1) % SAVE_FREQUENCY == 0 and self.model_out:
+                    self.save_model(self.model_out)
+                    logging.debug("Saved progress to %s." % self.model_out)
+
+
         except KeyboardInterrupt:
             logging.info("Terminated early. Cleaning up.")
 
