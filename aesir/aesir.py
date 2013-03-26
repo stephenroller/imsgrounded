@@ -49,6 +49,8 @@ class freyr:
         # need to set up for parallelization
         logging.debug("Calling xmod initialize.")
         xmod.initialize(cores, self.K)
+        self.loglikelihoods = []
+        self.timediffs = []
 
         try:
             for iteration in xrange(int(self.mcmc_iterations_max)):
@@ -59,6 +61,9 @@ class freyr:
                 self.beta_a_mle()
 
                 timediff = datetime.datetime.now() - last_time
+                self.loglikelihoods.append(self.pseudologlikelihood)
+                self.timediffs.append(timediff.total_seconds())
+                self.max_iteration = iteration
                 logging.debug("LL(%4d) = %f, took %s" % (iteration, self.pseudologlikelihood, timediff))
 
                 if (iteration + 1) % SAVE_FREQUENCY == 0 and self.model_out:
@@ -112,7 +117,10 @@ class freyr:
                 psi=self.psi,
                 phi=self.phi,
                 pi=self.pi,
-                k=self.K)
+                k=self.K,
+                max_iteration=self.max_iteration,
+                loglikelihoods=self.loglikelihoods,
+                timediffs=self.timediffs)
 
     def getfeaturelabels(self,file):
         self.feature_labels=open(file).read().split()
