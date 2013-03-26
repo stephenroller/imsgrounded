@@ -326,6 +326,7 @@ static PyObject *finalize(PyObject *self, PyObject *args) {
     pthread_mutex_destroy(&(locks[k]));
   }
   free(locks);
+  return Py_BuildValue("z", NULL);
 }
 
 static PyMethodDef xmod_methods[] = {
