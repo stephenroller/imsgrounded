@@ -26,6 +26,8 @@ def main():
                         help='Number of iterations.')
     parser.add_argument('--threads', '-t', metavar='INT', default=4, type=int,
                         help='The number of separate threads to run.')
+    parser.add_argument('--continue', '-c', action='store_true', dest='kontinue',
+                        help='Continue computing from an existing model.')
     args = parser.parse_args()
 
     logging.info("Loading data...")
@@ -33,6 +35,10 @@ def main():
     logging.warning("Initializing model...")
     model = aesir.freyr(data, K=args.topics, model_out=args.output)
     logging.info("Finished initializing.")
+    if args.kontinue:
+        logging.info("Loading existing model...")
+        model.load_model(args.output)
+        logging.info("Existing model loaded.")
     logging.info("Starting MCMC...")
     model.burnin_iterations = args.burnin
     model.mcmc_iterations_max = args.iterations

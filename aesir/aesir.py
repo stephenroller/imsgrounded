@@ -44,16 +44,17 @@ class freyr:
 
         self.burnin = 100
         self.mcmc_iterations_max = 1000
+        self.max_iteration = 0
+        self.loglikelihoods = []
+        self.timediffs = []
 
     def mcmc(self, cores=8):
         # need to set up for parallelization
         logging.debug("Calling xmod initialize.")
         xmod.initialize(cores, self.K)
-        self.loglikelihoods = []
-        self.timediffs = []
 
         try:
-            for iteration in xrange(int(self.mcmc_iterations_max)):
+            for iteration in xrange(self.max_iteration + 1, int(self.mcmc_iterations_max) + 1):
                 last_time = datetime.datetime.now()
                 self.fast_posterior()
                 self.gamma_a_mle()
@@ -66,7 +67,7 @@ class freyr:
                 self.max_iteration = iteration
                 logging.debug("LL(%4d) = %f, took %s" % (iteration, self.pseudologlikelihood, timediff))
 
-                if (iteration + 1) % SAVE_FREQUENCY == 0 and self.model_out:
+                if iteration % SAVE_FREQUENCY == 0 and self.model_out:
                     self.save_model(self.model_out)
                     logging.debug("Saved progress to %s." % self.model_out)
 
@@ -121,6 +122,16 @@ class freyr:
                 max_iteration=self.max_iteration,
                 loglikelihoods=self.loglikelihoods,
                 timediffs=self.timediffs)
+
+    def load_model(self, filename):
+        model = np.load(filename)
+        self.psi = model['psi']
+        self.phi = model['phi']
+        self.K = model['k']
+        self.pi = model['pi']
+        self.max_iteration = model['max_iteration']
+        self.loglikelihoods = list(model['loglikelihoods'])
+        self.timediffs = list(model['timediffs'])
 
     def getfeaturelabels(self,file):
         self.feature_labels=open(file).read().split()
