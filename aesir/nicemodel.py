@@ -1,7 +1,12 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*
 
 import argparse
 import numpy as np
+import sys
+import codecs
+
+sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
 
 TOPIC_WORDS_SHOW = 15
 TOPIC_FEATS_SHOW = 5
@@ -38,6 +43,8 @@ def main():
     label_vocab = load_labels(args.vocab)
     label_features = load_labels(args.features)
 
+    #print "Loglikelihood: %.5f" % model["loglikelihoods"][-1]
+
     # phi is vocab
     # psi is features
     # pi is documents
@@ -55,6 +62,20 @@ def main():
                 print "    %.5f  %s" % (p, label_features.get(i, "feat_%d" % i))
 
             print
+
+    if args.words:
+        whitewords = set(open(args.words).read().split())
+        mappings = []
+        for k,v in label_vocab.iteritems():
+            if v[:v.rindex("/")] in whitewords and '/NN' in v:
+                mappings.append(k)
+
+        for m in mappings:
+            word = unicode(label_vocab[m], 'utf-8')
+            probs = model['phi'][:,m]
+            probs = probs / np.sum(probs)
+            print word[:word.rindex("/")] + "\t" + " ".join(str(p) for p in probs)
+
 
 
 if __name__ == '__main__':
