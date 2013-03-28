@@ -11,9 +11,8 @@ import struct
 import os.path
 
 log = np.log
-
-# every SAVE_FREQUENCY iterations, we go ahead and output the model
-SAVE_FREQUENCY = 10
+now = datetime.datetime.now
+ONE_HOUR = datetime.timedelta(hours=1)
 
 class freyr:
     def __init__(self, data, K=100, model_out=None):
@@ -54,8 +53,10 @@ class freyr:
         xmod.initialize(cores, self.K)
 
         try:
+            last_save_time = datetime.datetime.now()
+
             for iteration in xrange(self.max_iteration + 1, int(self.mcmc_iterations_max) + 1):
-                last_time = datetime.datetime.now()
+                last_time = now()
                 self.fast_posterior()
                 self.gamma_a_mle()
                 self.theta_a_mle()
@@ -67,9 +68,10 @@ class freyr:
                 self.max_iteration = iteration
                 logging.debug("LL(%4d) = %f, took %s" % (iteration, self.pseudologlikelihood, timediff))
 
-                if iteration % SAVE_FREQUENCY == 0 and self.model_out:
+                if now() - last_save_time >= ONE_HOUR and self.model_out:
                     self.save_model(self.model_out)
                     logging.debug("Saved progress to %s." % self.model_out)
+                    last_save_time = now()
 
 
         except KeyboardInterrupt:
