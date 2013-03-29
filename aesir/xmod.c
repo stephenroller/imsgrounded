@@ -14,10 +14,16 @@
 #define MAGIC_GAMMA_CONSTANT FLT_MAX
 #define GAMMA_THRESH (1e-9)
 
+#define QUEUE_INCREMENT 100
+
 // thread trackers
 pthread_t* thread_ids;
 // and mutex locks, one per topic (K)
 pthread_mutex_t* locks;
+// and the queue mutex
+
+pthread_mutex_t queue_lock;
+int queue;
 
 // we'll need to pass thread parameters around
 typedef struct {
@@ -159,78 +165,91 @@ void* threaded_posterier_chunk(void* args) {
   double sz_array[NUM_TOPICS];
 
   double z, s, rand_x;
-  int i, v, f, g, c, k, ci;
+  int i, v, f, g, c, k, ci, i_big, i_small;
 
   // have to manually initialize this array to 0's.
   unsigned long topic_hits[NUM_TOPICS];
   for (k=0; k<NUM_TOPICS; k++) topic_hits[k] = 0;
 
 
+  i = i_big = i_small = 0;
   // okay, core algorithm
-  for (i=tp->tid; i < tp->Nj; i+=NUM_CORES) {
-    // first fetch the data
-    // vocab item
-    v=*((int *)index_pyarray(tp->data, 1, i));
-    // feature item
-    f=*((int *)index_pyarray(tp->data, 2, i));
-    // docid
-    g=*((int *)index_pyarray(tp->data, 0, i));
-    // count
-    c=*((int *)index_pyarray(tp->data, 3, i));
+  while (i_big < tp->Nj) {
+    // first get the index from the queue
+    pthread_mutex_lock(&queue_lock);
+    i_big = queue;
+    queue += QUEUE_INCREMENT;
+    pthread_mutex_unlock(&queue_lock);
 
-    // calculate the log likelihood
-    for (k=0; k<NUM_TOPICS; k++) {
-      f_array[k] =
-          *((double *)index_pyarray(tp->logphi, k, v)) +
-          *((double *)index_pyarray(tp->logpsi, k, f)) +
-          *((double *)index_pyarray(tp->logpi, g, k));
-    }
+    for (i_small = 0; i_small < QUEUE_INCREMENT; i_small++) {
+      i = i_big + i_small;
+      if (i >= tp->Nj)
+        break;
 
-    z = lnsumexp(f_array, NUM_TOPICS);
-    s = 0;
+      // first fetch the data
+      // vocab item
+      v=*((int *)index_pyarray(tp->data, 1, i));
+      // feature item
+      f=*((int *)index_pyarray(tp->data, 2, i));
+      // docid
+      g=*((int *)index_pyarray(tp->data, 0, i));
+      // count
+      c=*((int *)index_pyarray(tp->data, 3, i));
 
-    // what we're building here is the conditional CDF, where
-    // sz_array[i] = p(x <= i)
-    // so sz_array (sum of z) is monotonically increasing, and
-    // at it's max should be close to 1.
-    // z is the log sum of the absolute probabilities, so
-    // we need to divide (sub in log space) total prob.
-    for (k = 0; k<NUM_TOPICS; k++) {
-      s += exp(f_array[k] - z);
-      sz_array[k] = s;
-    }
+      // calculate the log likelihood
+      for (k=0; k<NUM_TOPICS; k++) {
+        f_array[k] =
+            *((double *)index_pyarray(tp->logphi, k, v)) +
+            *((double *)index_pyarray(tp->logpsi, k, f)) +
+            *((double *)index_pyarray(tp->logpi, g, k));
+      }
+
+      z = lnsumexp(f_array, NUM_TOPICS);
+      s = 0;
+
+      // what we're building here is the conditional CDF, where
+      // sz_array[i] = p(x <= i)
+      // so sz_array (sum of z) is monotonically increasing, and
+      // at it's max should be close to 1.
+      // z is the log sum of the absolute probabilities, so
+      // we need to divide (sub in log space) total prob.
+      for (k = 0; k<NUM_TOPICS; k++) {
+        s += exp(f_array[k] - z);
+        sz_array[k] = s;
+      }
 
 
-    // alright, now let's count up all our topics.
-    for (ci=0; ci<c; ci++) {
-      tp->Z_array[tp->tid] += z;
+      // alright, now let's count up all our topics.
+      for (ci=0; ci<c; ci++) {
+        tp->Z_array[tp->tid] += z;
 
-      rand_x = gsl_rng_uniform(random_number_generator);
-      /* sample from exp(f_array[0]-z) */
-      k = find_index(sz_array, NUM_TOPICS, rand_x);
-      //for (k=0; k < NUM_TOPICS && rand_x >= sz_array[k]; k++);
+        rand_x = gsl_rng_uniform(random_number_generator);
+        /* sample from exp(f_array[0]-z) */
+        k = find_index(sz_array, NUM_TOPICS, rand_x);
+        //for (k=0; k < NUM_TOPICS && rand_x >= sz_array[k]; k++);
 
-      topic_hits[k] += 1;
-    }
+        topic_hits[k] += 1;
+      }
 
-    // finally we need to syncronize these hits with the other threads
-    for (k=0; k<NUM_TOPICS; k++) {
-      // don't bother syncing if there aren't updates!
-      if (topic_hits[k] == 0)
-        continue;
+      // finally we need to syncronize these hits with the other threads
+      for (k=0; k<NUM_TOPICS; k++) {
+        // don't bother syncing if there aren't updates!
+        if (topic_hits[k] == 0)
+          continue;
 
-      // grab the mutex to make sure we don't have race conditions
-      pthread_mutex_lock(&locks[k]);
+        // grab the mutex to make sure we don't have race conditions
+        pthread_mutex_lock(&locks[k]);
 
-      *((int *)index_pyarray(tp->Rphi, k, v)) += topic_hits[k];
-      *((int *)index_pyarray(tp->Rpsi, k, f)) += topic_hits[k];
-      *((int *)index_pyarray(tp->S, g, k)) += topic_hits[k];
+        *((int *)index_pyarray(tp->Rphi, k, v)) += topic_hits[k];
+        *((int *)index_pyarray(tp->Rpsi, k, f)) += topic_hits[k];
+        *((int *)index_pyarray(tp->S, g, k)) += topic_hits[k];
 
-      // make sure we reset the counter for next iteration.
-      topic_hits[k] = 0;
+        // make sure we reset the counter for next iteration.
+        topic_hits[k] = 0;
 
-      // and unlock
-      pthread_mutex_unlock(&locks[k]);
+        // and unlock
+        pthread_mutex_unlock(&locks[k]);
+      }
     }
   }
 
@@ -265,6 +284,11 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   Rphi = (PyArrayObject *)PyArray_FromDims(2,dims_Rphi,NPY_INT);
   Rpsi = (PyArrayObject *)PyArray_FromDims(2,dims_Rpsi,NPY_INT);
   S = (PyArrayObject *)PyArray_FromDims(2,dims_S,NPY_INT);
+
+  // reset the queue
+  pthread_mutex_lock(&queue_lock);
+  queue = 0;
+  pthread_mutex_unlock(&queue_lock);
 
   // k, we've initialized out output arrays
   // let's start the threads.
@@ -314,6 +338,8 @@ static PyObject *initialize(PyObject *self, PyObject *args) {
     }
   }
 
+  pthread_mutex_init(&queue_lock, NULL);
+
   thread_ids = (pthread_t*) malloc(NUM_CORES * sizeof(pthread_t));
 
   return Py_BuildValue("z", NULL);
@@ -325,6 +351,7 @@ static PyObject *finalize(PyObject *self, PyObject *args) {
   for (k=0; k<NUM_TOPICS; k++) {
     pthread_mutex_destroy(&(locks[k]));
   }
+  pthread_mutex_destroy(&queue_lock);
   free(locks);
   return Py_BuildValue("z", NULL);
 }
