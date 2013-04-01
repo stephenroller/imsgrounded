@@ -43,7 +43,6 @@ typedef struct {
 int NUM_CORES;
 int NUM_TOPICS;
 
-
 static inline float fasttrigamma(float x) {
   float p;
   x=x+6;
@@ -55,6 +54,12 @@ static inline float fasttrigamma(float x) {
     x=x-1;
     p=1/(x*x)+p;
   }
+  if (isinf(p) && signbit(p)) {
+    p = -1e33;
+  } else if (isinf(p)) {
+    p = 1e33;
+  }
+
   return p;
 }
 
@@ -73,17 +78,17 @@ static PyObject* a_update(PyObject *self, PyObject *args) {
   double inva;
 
   for (i=0; i<max_iter && delta > iteration_eps; i++) {
-    old_a = a;
     if (a < FLT_MIN) {
       a = FLT_MIN;
     }
+    old_a = a;
     am = a * m;
     d1 = J * fastdigamma(a) - m * fastdigamma(am) + m * sum_logdatamean;
     d2 = J * fasttrigamma(a) - (m * m * fasttrigamma(am));
 
     inva =((1.0 / a) + (d1 / d2) * a * a);
     a = 1.0/inva;
-    if (a < FLT_MIN) {
+    if (a < FLT_MIN || isnan(a)) {
       a = old_a;
     }
     delta = abs(old_a - a);
@@ -180,6 +185,9 @@ void* threaded_posterier_chunk(void* args) {
     i_big = queue;
     queue += QUEUE_INCREMENT;
     pthread_mutex_unlock(&queue_lock);
+
+    if (i_big >= tp->Nj)
+        break;
 
     for (i_small = 0; i_small < QUEUE_INCREMENT; i_small++) {
       i = i_big + i_small;
@@ -280,6 +288,8 @@ static PyObject *xfactorialposterior(PyObject *self, PyObject *args) {
   // we're going to need to sum all of these up in the end.
   double Z_array[NUM_CORES];
   double Z = 0;
+
+  for (p=0; p<NUM_CORES; p++) Z_array[p] = 0;
 
   Rphi = (PyArrayObject *)PyArray_FromDims(2,dims_Rphi,NPY_INT);
   Rpsi = (PyArrayObject *)PyArray_FromDims(2,dims_Rpsi,NPY_INT);

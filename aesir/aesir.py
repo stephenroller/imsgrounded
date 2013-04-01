@@ -46,11 +46,13 @@ class freyr:
         self.max_iteration = 0
         self.loglikelihoods = []
         self.timediffs = []
+        self.pseudologlikelihood = 0
 
     def mcmc(self, cores=8):
         # need to set up for parallelization
-        logging.debug("Calling xmod initialize.")
+        logging.info("Initializing xmod...")
         xmod.initialize(cores, self.K)
+        logging.info("xmod initialized.")
 
         try:
             last_save_time = datetime.datetime.now()
@@ -70,7 +72,7 @@ class freyr:
 
                 if now() - last_save_time >= ONE_HOUR and self.model_out:
                     self.save_model(self.model_out)
-                    logging.debug("Saved progress to %s." % self.model_out)
+                    logging.debug("%s passed. Saved progress to %s." % (now() - last_save_time, self.model_out))
                     last_save_time = now()
 
 
@@ -78,14 +80,23 @@ class freyr:
             logging.info("Terminated early. Cleaning up.")
 
         # have to clean up memory
-        logging.debug("Calling xmod finalize.")
+        logging.debug("Finalizing xmod...")
         xmod.finalize()
+        logging.debug("xmod finalized.")
 
     def fast_posterior(self):
         logvpsi=np.hstack(( np.zeros((self.K,1)),log(self.psi)))
         logphi = log(self.phi)
         logpi = log(self.pi)
+
+        if abs(self.pseudologlikelihood) > 1e20 or np.any(np.isnan(logphi)) or np.any(np.isnan(logvpsi)) or np.any(np.isnan(logpi)) or \
+                np.any(logphi > 0) or np.any(logvpsi > 0) or np.any(logpi > 0):
+            logging.error("Numerical instability detected. Dropping to debugger. (before loop)")
+            import pdb
+            pdb.set_trace()
+
         self.Rphi,self.Rpsi,self.S,Z=xmod.xfactorialposterior(logphi,logvpsi,logpi,self.data,self.Nj,self.V,self.F+1,self.J)
+
         phi=clip(dirichletrnd_array(self.Rphi+self.beta))
         psi=clip(dirichletrnd_array(self.Rpsi[:,1:]+self.gamma))
         vpi=clip(dirichletrnd_array(self.S+self.theta))
@@ -100,6 +111,11 @@ class freyr:
         self.phiprior.observation(self.phi)
         self.phiprior.a=self.beta.sum()
         self.phiprior.a_update()
+        if np.isnan(self.phiprior.a) or np.isnan(self.phiprior.m):
+            logging.error("I got some numerical instability. Let's go.")
+            import pdb
+            pdb.set_trace()
+
         self.beta=self.phiprior.a*self.phiprior.m
 
     def theta_a_mle(self):
@@ -115,6 +131,10 @@ class freyr:
         self.gamma=self.psiprior.a*self.psiprior.m
 
     def save_model(self, filename):
+        if np.isnan(self.pseudologlikelihood):
+            logging.error("Numerical instability detected. Cowardly refusing to save and dying hard...")
+            sys.exit(2)
+
         np.savez_compressed(
                 filename,
                 psi=self.psi,
@@ -147,15 +167,13 @@ class dirichlet:
         self.K=K
         self.iteration_eps=1e-4
         self.iteration_max=5
+        self.a = 0
 
     def observation(self,data):
         self.data=clip(data)
         self.J=data.shape[0]
         self.K=data.shape[1]
         self.logdatamean=np.log(self.data).mean(axis=0)
-
-    def initialize(self):
-        self.a, self.m = moment_match(self.data)
 
     def a_update(self):
         self.a = xmod.a_update(self.a, self.m, np.sum(self.logdatamean), self.J, self.iteration_max, self.iteration_eps)
