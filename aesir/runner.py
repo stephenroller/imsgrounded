@@ -32,7 +32,7 @@ def main():
 
     logging.info("Loading data...")
     data = aesir.dataread(args.input)
-    logging.warning("Initializing model...")
+    logging.info("Initializing model...")
     model = aesir.freyr(data, K=args.topics, model_out=args.output)
     logging.info("Finished initializing.")
     if args.kontinue:
