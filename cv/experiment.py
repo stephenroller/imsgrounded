@@ -17,6 +17,10 @@ import bz2
 from apgl.features.KernelCCA import KernelCCA
 from apgl.kernel.LinearKernel import LinearKernel
 
+NONORM = 0
+NORM1 = 1
+NORM2 = 2
+
 
 STOREDIR = "/Users/stephen/Working/imsgrounded/data"
 comp_values = pd.read_table(os.path.join(STOREDIR, "comp/comp-values_all_sorted.tsv"))
@@ -47,9 +51,13 @@ def norm2(vector):
 def norm1(vector):
     return vector / sum(vector)
 
-def join_vectors(vectors, norm=True):
-    if norm:
+def join_vectors(vectors, norm=0):
+    if norm == 2:
         vectors = (norm2(v) for v in vectors)
+    elif norm == 1:
+        vectors = (norm1(v) for v in vectors)
+    else:
+        pass
     vectors = (list(v) for v in vectors)
     return np.array(reduce(operator.add, vectors))
 
@@ -60,6 +68,18 @@ def euclid(v1, v2):
     d = v1 - v2
     return sqrt(d.dot(d))
 
+KLDIV_EPS = 1e-5
+def kldiv(p, q):
+    pp = norm1(p)
+    qp = norm1(q)
+    return np.sum([pi * np.log(pi / qi) for pi, qi in zip(pp, qp) if pi > KLDIV_EPS and qi > KLDIV_EPS])
+
+def symkldiv(p, q):
+    return kldiv(p, q) + kldiv(q, p)
+
+def jsdiv(p, q):
+    M = 0.5 * (p + q)
+    return 0.5 * kldiv(p, q) + 0.5 * kldiv(q, p)
 
 def lmi(space):
     M = np.matrix(list(space.vector))
@@ -95,15 +115,29 @@ def reduce_space(space, U, S, V, min_sigma=None, max_dim=None, latent_only=False
     return vectors_svded
 
 
-def eval_space(vectors, comps):
+def eval_space(vectors, comps, method='cos'):
     joined = comps.merge(vectors, left_on='compound', right_on='word').merge(vectors, left_on='const', right_on='word')
-    joined['cos'] = [cosine(v1, v2) for v1, v2 in zip(joined['vector_y'], joined['vector_x'])]
-    rho, p = spearmanr(joined['mean'], joined['cos'])
+    if method == 'cos':
+        distfun = cosine
+    elif method == 'euclid':
+        distfun = euclid
+    elif method == 'kldiv':
+        distfun = kldiv
+    elif method == 'kldiv2':
+        distfun = lambda x,y: kldiv(y,x)
+    elif method == 'symkldiv':
+        distfun = symkldiv
+    elif method == 'jsdiv':
+        distfun = jsdiv
+    else:
+        raise ValueError, "%s not a supported distance metric." % method
+    joined[method] = [distfun(v1, v2) for v1, v2 in zip(joined['vector_y'], joined['vector_x'])]
+    rho, p = spearmanr(joined['mean'], joined[method])
     return rho, p, len(joined['const'])
 
 
-def all_params(vectors):
-    rho, p, n = eval_space(vectors, comp_values)
+def all_params(vectors, method):
+    rho, p, n = eval_space(vectors, comp_values, method)
     print "  Basic Concat (With all pairs):"
     print "    Number pairs compared:", n
     print "    rho =", rho, "   p =", p
@@ -113,26 +147,27 @@ def all_params(vectors):
     U, S, V = perform_svd(vectors)
     for k in [1, 2, 5, 10, 20, 50, 100, 200]:
         for latent in [True, False]:
-            rho, p, n = eval_space(reduce_space(vectors, U, S, V, max_dim=k, latent_only=latent), comp_values)
+            rho, p, n = eval_space(reduce_space(vectors, U, S, V, max_dim=k, latent_only=latent), comp_values, method)
             print "  SVD Space (k = %d, latent = %s):" % (k, latent)
             print "    Number of pairs compared:", n
             print "    rho =", rho, "   p =", p
 
 
-spaces = {basename(sp) : read_space(sp) for sp in sys.argv[1:]}
+method = sys.argv[1]
+spaces = {basename(sp) : read_space(sp) for sp in sys.argv[2:]}
 all_keepwords = reduce(set.intersection, (set(spaces[c].keys()) for c in spaces.keys()))
 
 for combination in combinations(spaces.keys()):
     print "+".join(list(combination)) + ":"
     keepwords = sorted(reduce(set.intersection, (set(spaces[c].keys()) for c in combination)))
-    vectors = pd.DataFrame([{'word': w, 'vector':  join_vectors([spaces[c][w] for c in combination]) } for w in keepwords])
+    vectors = pd.DataFrame([{'word': w, 'vector':  join_vectors([spaces[c][w] for c in combination], norm=NORM1) } for w in keepwords])
     if keepwords != all_keepwords:
         print "(Only comparable pairs)"
         mask = vectors.word.map(lambda x: x in all_keepwords)
-        all_params(vectors[mask])
+        all_params(vectors[mask], method)
     else:
         print "(All Pairs)"
-        all_params(vectors)
+        all_params(vectors, method)
 
     continue
     lmi_vectors = [lmi(pd.DataFrame([{'word': w, 'vector':  spaces[c][w]}  for w in keepwords]))
@@ -140,7 +175,7 @@ for combination in combinations(spaces.keys()):
     zipped_vectors = zip(*[sp.vector for sp in lmi_vectors])
     joined_lmi = pd.DataFrame([{'word': w, 'vector': join_vectors(zv)} for w, zv in zip(keepwords, zipped_vectors)])
     print "LMI:"
-    all_params(joined_lmi)
+    all_params(joined_lmi, method)
 
     if False and len(combination) == 2:
         # sweet, we can do CCA:
