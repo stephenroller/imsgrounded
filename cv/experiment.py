@@ -20,6 +20,7 @@ from apgl.kernel.LinearKernel import LinearKernel
 NONORM = 0
 NORM1 = 1
 NORM2 = 2
+KLDIV_EPS = 1e-8
 
 
 STOREDIR = "/Users/stephen/Working/imsgrounded/data"
@@ -68,18 +69,17 @@ def euclid(v1, v2):
     d = v1 - v2
     return sqrt(d.dot(d))
 
-KLDIV_EPS = 1e-5
 def kldiv(p, q):
     pp = norm1(p)
     qp = norm1(q)
-    return np.sum([pi * np.log(pi / qi) for pi, qi in zip(pp, qp) if pi > KLDIV_EPS and qi > KLDIV_EPS])
+    return np.sum([pi * np.log2(pi / qi) for pi, qi in zip(pp, qp) if pi > KLDIV_EPS or qi > KLDIV_EPS])
 
 def symkldiv(p, q):
     return kldiv(p, q) + kldiv(q, p)
 
 def jsdiv(p, q):
     M = 0.5 * (p + q)
-    return 0.5 * kldiv(p, q) + 0.5 * kldiv(q, p)
+    return 0.5 * kldiv(p, M) + 0.5 * kldiv(q, M)
 
 def lmi(space):
     M = np.matrix(list(space.vector))
