@@ -60,7 +60,8 @@ def percentile_ranked(similarities):
     return ranked_sims
 
 
-
+def calc_similarities(dist, other_dists, measure=jsdiv):
+    return np.array([measure(dist, other) for other in other_dists])
 
 def main():
     parser = argparse.ArgumentParser(description='Checks for prediction of association norms.')
@@ -90,8 +91,7 @@ def main():
         nopos = v[:v.rindex('/')]
         nopos_labels[nopos] = i
 
-    assocs = load_associations()
-    logging.info("assoc's loaded.")
+    #assocs = load_associations()
     to_compute_similarities = set(t for t, a in assocs)
 
     ranked_sims = {}
