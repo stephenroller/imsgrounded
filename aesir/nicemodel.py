@@ -9,14 +9,16 @@ import codecs
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
 
 TOPIC_WORDS_SHOW = 15
-TOPIC_FEATS_SHOW = 5
+TOPIC_FEATS_SHOW = 10
 
 def load_labels(filename):
     if not filename:
         return {}
     else:
         with codecs.getreader('utf-8')(open(filename)) as f:
-            lines = (l.strip().split() for l in f.readlines() if l.strip())
+            lines = (l.strip().split("\t") for l in f.readlines() if l.strip())
+            #hack
+            lines = (l for l in lines if len(l) == 2)
             return {int(i):w for i,w in lines}
 
 def ranked_list(probabilities, n):
@@ -37,6 +39,8 @@ def main():
                         help='Output topics in human readable form.')
     parser.add_argument('--words', '-w', metavar='FILE',
                         help='Output the distributions of these words.')
+    parser.add_argument('--all-words', '-W', action='store_true',
+                        help='Ignore -w. Output all words.')
     parser.add_argument('--vocab', '-v', metavar='FILE',
                         help='The vocab labels.')
     parser.add_argument('--features', '-f', metavar='FILE',
@@ -47,6 +51,10 @@ def main():
                         help='The document labels.')
     parser.add_argument('--detailedtopics', '-p', action='store_true',
                         help='Output nice, human readable information about documents.')
+    parser.add_argument('--csv', '-c', action='store_true',
+                        help='Output in a CSV format we can use for ggplot2.')
+    parser.add_argument('--dont-norm', '-N', action='store_true',
+                        help="Don't norm the probabilities to be conditional distributions.")
     args = parser.parse_args()
 
     model = np.load(args.model)
@@ -111,12 +119,13 @@ def main():
 
 
 
-    if args.words:
+    if args.words and not args.all_words:
         whitewords = codecs.getreader('utf-8')(open(args.words)).read().split()
         mappings = {}
         for k,v in label_vocab.iteritems():
             nicev = v[:v.rindex("/")]
-            if nicev in whitewords and '/NN' in v:
+            #if nicev in whitewords and '/NN' in v:
+            if nicev in whitewords:
                 mappings[nicev] = k
 
         for ww in whitewords:
@@ -125,19 +134,31 @@ def main():
             m = mappings[ww]
             word = label_vocab[m]
             probs = model['phi'][:,m]
-            probs = probs / np.sum(probs)
+            if not args.dont_norm:
+                probs = probs / np.sum(probs)
             niceword = word[:word.rindex("/")]
             if args.detailedtopics:
-                niceprobs = [(i, p) for i, p in enumerate(probs) if p > 1e-4]
+                niceprobs = [(i, p) for i, p in enumerate(probs) if p > .05]
                 print "Word: %s" % niceword
                 for i, p in niceprobs:
                     print "  Topic %d: %f" % (i, p)
                 print column_join([topic_strings[k] for k, p in niceprobs])
                 print
-            else:
-                #print word[:word.rindex("/")] + "\t" + " ".join(str(p) for p in probs)
+            elif args.csv:
                 for i, p in enumerate(probs):
                     print "%s,%d,%f" % (niceword, i, p)
+            else:
+                print word[:word.rindex("/")] + "\t" + " ".join(repr(p) for p in probs)
+
+    if args.all_words:
+        for wid, w in label_vocab.iteritems():
+            probs = model['phi'][:,wid]
+            if '/NN' in w:
+                # hack for later
+                w = w[:w.rindex('/')]
+            if not args.dont_norm:
+                probs = probs / np.sum(probs)
+            print w + "\t" + " ".join(repr(p) for p in probs)
 
 
 if __name__ == '__main__':
