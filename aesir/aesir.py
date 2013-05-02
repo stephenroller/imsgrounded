@@ -249,7 +249,8 @@ def dataread(file):
     logging.warning("Starting to read data (pass 1)...")
     for doc_id, doc in enumerate(data_file):
         for item in itersplit(doc, " "):
-            row_count += 1
+            if item.strip():
+                row_count += 1
     data_file.close()
 
     # okay let's go through this again
@@ -266,6 +267,8 @@ def dataread(file):
     logging.warning("Starting to read data (pass 2)...")
     for doc_id, doc in enumerate(data_file):
         for item in itersplit(doc, " "):
+            if not item.strip():
+                continue
             splitted = parse_item(item)
             if len(splitted) == 2:
                 feat_id = 0
