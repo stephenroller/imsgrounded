@@ -2,7 +2,8 @@ require(ggplot2)
 require(reshape)
 library(grid)
 
-cbbPalette <- c("#000000", "#E69F00", "#3b7ca1", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+#cbbPalette <- c("#000000", "#E69F00", "#3b7ca1", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+cbbPalette <- c("#000000", "#F1A340", "#998EC3", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 
 mytheme <- theme_bw() + 
