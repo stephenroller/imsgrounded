@@ -41,10 +41,11 @@ def word_ids_to_features(vocab_dist, feature_dists):
         wn = w[:w.rindex('/')]
         if wn in feature_dists:
             output[wid] = feature_dists[wn]
+    logging.info("%d words have features." % len(output))
     return output
 
 def main():
-    parser = argparse.ArgumentParser(description='Outputs a human readable model.')
+    parser = argparse.ArgumentParser(description='Stochastically adds features to a corpus.')
     parser.add_argument('--vocab', '-v', metavar='FILE',
                         help='The vocab labels.')
     parser.add_argument('--input', '-i', metavar='FILE',
@@ -59,13 +60,17 @@ def main():
     features = load_features(args.features)
     feature_map = word_ids_to_features(vocab_labels, features)
 
-    import sys
-    output = open(args.output, 'w')
-    #output = sys.stdout
+    logging.info("First pass; gathering statistics.")
+    inpt = utfopen(args.input)
+    numlines = len(inpt.readlines())
+    inpt.close()
 
-    for lno, line in enumerate(utfopen(args.input).readlines(), 1):
+    logging.info("Starting second pass; actually writing output.")
+    output = open(args.output, 'w')
+    inpt = utfopen(args.input)
+    for lno, line in enumerate(inpt.readlines(), 1):
         if lno % 1000 == 0:
-            logging.info("Processing doc# %d" % lno)
+            logging.info("Processing doc# %d/%d (%4.1f%%)" % (lno, numlines, 100*float(lno)/numlines))
         for chunk in itersplit(line, ' '):
             chunk = chunk.rstrip()
             if not chunk: continue
@@ -79,6 +84,7 @@ def main():
                     output.write('%d,%d:%d ' % (wid, fid, cnt))
         output.write('\n')
 
+    inpt.close()
     output.close()
 
 
