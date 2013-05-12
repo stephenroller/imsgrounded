@@ -9,10 +9,22 @@ import tempfile
 import datetime
 import struct
 import os.path
+import zipfile
 
 log = np.log
 now = datetime.datetime.now
 ONE_HOUR = datetime.timedelta(hours=1)
+
+def safe_pi_read(filename):
+    zipf = zipfile.ZipFile(filename)
+    buf_s = zipf.read("pi.npy")
+    header = buf_s[:80]
+    dims = map(int, header[header.index("(")+1:header.rindex(")")].split(", "))
+    pi = np.fromstring(buf_s[80:]).reshape(dims)
+    del buf_s, header, dims
+    zipf.close()
+    return pi
+
 
 class freyr:
     def __init__(self, data, K=100, model_out=None):
@@ -150,7 +162,7 @@ class freyr:
         self.psi = model['psi']
         self.phi = model['phi']
         self.K = model['k']
-        self.pi = model['pi']
+        self.pi = safe_pi_read(filename) # hack b/c np doesn't buffer things properly
         self.max_iteration = model['max_iteration']
         self.loglikelihoods = list(model['loglikelihoods'])
         self.timediffs = list(model['timediffs'])
@@ -252,6 +264,7 @@ def dataread(file):
             if item.strip():
                 row_count += 1
     data_file.close()
+    num_docs = doc_id + 1
 
     # okay let's go through this again
     # start writing the header.
@@ -261,11 +274,12 @@ def dataread(file):
 
     # so far recognizes two data-types, lda and combinatorial lda
     data_file=open(file)
-    group_j=0
 
-    dimensions = 1
     logging.warning("Starting to read data (pass 2)...")
+    rows_written = 0
     for doc_id, doc in enumerate(data_file):
+        if (doc_id + 1) % 1000 == 0:
+            logging.info("Processing doc %d/%d (%4.2f%%)" % (doc_id + 1, num_docs, 100 * float(rows_written) / row_count))
         for item in itersplit(doc, " "):
             if not item.strip():
                 continue
@@ -277,6 +291,7 @@ def dataread(file):
                 word_id, feat_id, count = splitted
 
             outs = struct.pack("<QQQQ", doc_id, word_id, feat_id, count)
+            rows_written += 1
             tmpfile.write(outs)
 
     tmpfile.close()
