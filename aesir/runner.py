@@ -37,8 +37,12 @@ def main():
     logging.info("Finished initializing.")
     if args.kontinue:
         logging.info("Loading existing model...")
-        model.load_model(args.output)
-        logging.info("Existing model loaded.")
+        try:
+            model.load_model(args.output)
+            logging.info("Existing model loaded.")
+        except IOError:
+            logging.info("Can't continue. Starting from scratch.")
+
     logging.info("Starting MCMC...")
     model.burnin_iterations = args.burnin
     model.mcmc_iterations_max = args.iterations
