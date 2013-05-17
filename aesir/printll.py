@@ -6,7 +6,12 @@ import numpy as np
 HUMAN=True
 
 for f in sys.argv[1:]:
-    m = np.load(f)
+    try:
+        m = np.load(f)
+    except:
+        print "%s didn't work, skipping" % f
+        continue
+
     if HUMAN:
         i = len(m["loglikelihoods"])
         print "%s [%d]: %f" % (f, i, m["loglikelihoods"][-1])
