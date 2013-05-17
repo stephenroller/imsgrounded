@@ -4,6 +4,7 @@ import argparse
 import codecs
 import numpy as np
 import logging
+import scipy.stats
 from itertools import izip
 from nicemodel import load_labels
 from aesir import row_norm
@@ -26,10 +27,26 @@ def norm1(v):
     return v / np.sum(v)
 
 def kldiv(p, q):
-    return np.sum([pi * np.log2(pi / qi) for pi, qi in zip(p, q) if pi > KLDIV_EPS or qi > KLDIV_EPS])
+    mask = (p > KLDIV_EPS) | (q > KLDIV_EPS)
+    mp = p[mask]
+    mq = q[mask]
+    return np.dot(mp, np.log2(mp / mq))
 
 def symkldiv(p, q):
     return kldiv(p, q) + kldiv(q, p)
+
+jsdiv_cache = {}
+def cached_jsdiv(i, j, p, q):
+    if (i, j) in jsdiv_cache:
+        return jsdiv_cache[(i, j)]
+    elif (j, i) in jsdiv_cache:
+        return jsdiv_cache[(j, i)]
+    else:
+        d = jsdiv(p, q)
+        x, y = i < j and (i, j) or (j, i)
+        jsdiv_cache[(x, y)] = d
+        return d
+
 
 def jsdiv(p, q):
     M = 0.5 * (p + q)
@@ -42,23 +59,12 @@ def load_associations():
             line = line.rstrip()
             target, assoc, count = line.split("\t")
             count = int(count)
-            for n in xrange(count):
-                assocs.append((target, assoc))
+            assocs.append((target, assoc, count))
     return assocs
 
 def percentile_ranked(similarities):
-    ranked_sims = np.zeros(len(similarities))
-    cached = {}
-    for i, s in enumerate(similarities):
-        if s in cached:
-            c = cached[s]
-        else:
-            c = np.sum(similarities >= s)
-            cached[s] = c
-        ranked_sims[i] = float(c)/len(similarities)
-
-    return ranked_sims
-
+    ranked = np.ceil(len(similarities) + 1 - scipy.stats.rankdata(similarities))
+    return ranked/len(similarities)
 
 def calc_similarities(dist, other_dists, measure=jsdiv):
     return np.array([measure(dist, other) for other in other_dists])
@@ -71,15 +77,15 @@ def main():
                         help='The vocab labels.')
     parser.add_argument('--features', '-f', metavar='FILE',
                         help='The feature labels.')
-    parser.add_argument('--docs', '-D', metavar='FILE',
-                        help='Output the document distributions for these documents.')
-    parser.add_argument('--docids', '-d', metavar='FILE',
-                        help='The document labels.')
+    #parser.add_argument('--docs', '-D', metavar='FILE',
+    #                    help='Output the document distributions for these documents.')
+    #parser.add_argument('--docids', '-d', metavar='FILE',
+    #                    help='The document labels.')
     args = parser.parse_args()
 
     model = np.load(args.model)
     phi = row_norm(model["phi"].T)
-    pi = model["pi"]
+    #pi = safe_pi_read(args.model)
 
     label_vocab = load_labels(args.vocab)
     #docids = codecs.getreader('utf-8')(open(args.docids)).readlines()
@@ -91,8 +97,8 @@ def main():
         nopos = v[:v.rindex('/')]
         nopos_labels[nopos] = i
 
-    #assocs = load_associations()
-    to_compute_similarities = set(t for t, a in assocs)
+    assocs = load_associations()
+    to_compute_similarities = list(set(t for t, a, c in assocs))
 
     ranked_sims = {}
 
@@ -103,26 +109,32 @@ def main():
             continue
         i = phi_nn[w_i]
         w_i_dist = norm1(phi[i])
-        similarities = np.array([jsdiv(w_i_dist, w_j_dist) for w_j_dist in phi])
+        similarities = np.array([cached_jsdiv(i, j, w_i_dist, w_j_dist) for j, w_j_dist in enumerate(phi)])
         ranked_sims[w_i] = percentile_ranked(similarities)
         logging.debug("%d / %d done." % (z + 1, len(to_compute_similarities)))
 
     logging.info("finished computing similarities.")
 
     measures = []
-    for t, a in assocs:
+    oov_count = 0
+    noov_count = 0
+    for t, a, c in assocs:
         if t not in ranked_sims or a not in nopos_labels:
+            oov_count += 1
             continue
+        noov_count += 1
         ranked = ranked_sims[t]
         m = max(ranked[i] for i in nopos_labels[a])
-        measures.append(m)
+        measures += [m] * c
 
     measures = np.array(measures)
     print "mean: %f" % measures.mean()
     print "std: %f" % measures.std()
-
-
-    np.savez_compressed("assoc.npz", measures=measures)
+    print "oov: %d" % oov_count
+    print "len(measures) = %d" % len(measures)
+    print "# hit: %d" % noov_count
+    print "Percentiles [.05, .10, .25, .5, .75, .90, .95] ="
+    print "     [%.8f, %.8f, %.8f, %.8f, %.8f, %.8f, %.8f]" % tuple([scipy.stats.scoreatpercentile(measures, p) for p in [5, 10, 25, 50, 75, 90, 95]])
 
 
 
