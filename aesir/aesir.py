@@ -148,7 +148,7 @@ class freyr:
             sys.exit(2)
 
         np.savez_compressed(
-                filename,
+                filename + ".tmp",
                 psi=self.psi,
                 phi=self.phi,
                 pi=self.pi,
@@ -156,6 +156,8 @@ class freyr:
                 max_iteration=self.max_iteration,
                 loglikelihoods=self.loglikelihoods,
                 timediffs=self.timediffs)
+
+        os.rename(filename + ".tmp", filename)
 
     def load_model(self, filename):
         model = np.load(filename)
