@@ -1,4 +1,5 @@
 import scipy
+import os
 import sys
 import scipy.special as Sp
 import numpy as np
@@ -148,7 +149,7 @@ class freyr:
             sys.exit(2)
 
         np.savez_compressed(
-                filename + ".tmp",
+                filename + ".tmp.npz",
                 psi=self.psi,
                 phi=self.phi,
                 pi=self.pi,
@@ -157,7 +158,7 @@ class freyr:
                 loglikelihoods=self.loglikelihoods,
                 timediffs=self.timediffs)
 
-        os.rename(filename + ".tmp", filename)
+        os.rename(filename + ".tmp.npz", filename)
 
     def load_model(self, filename):
         model = np.load(filename)
