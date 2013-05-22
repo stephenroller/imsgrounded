@@ -14,8 +14,8 @@ from functools import partial
 from math import sqrt
 import bz2
 
-from apgl.features.KernelCCA import KernelCCA
-from apgl.kernel.LinearKernel import LinearKernel
+#from apgl.features.KernelCCA import KernelCCA
+#from apgl.kernel.LinearKernel import LinearKernel
 
 NONORM = 0
 NORM1 = 1
@@ -23,7 +23,8 @@ NORM2 = 2
 KLDIV_EPS = 1e-8
 
 
-STOREDIR = "/Users/stephen/Working/imsgrounded/data"
+#STOREDIR = "/Users/stephen/Working/imsgrounded/data"
+STOREDIR = "/home/01813/roller/tmp/imsgrounded/data"
 comp_values = pd.read_table(os.path.join(STOREDIR, "comp/comp-values_all_sorted.tsv"))
 comp_values = comp_values[comp_values.const != comp_values.compound]
 
@@ -170,13 +171,16 @@ for combination in combinations(spaces.keys()):
         print "(All Pairs)"
         all_params(vectors, method)
 
-    #continue
-    lmi_vectors = [lmi(pd.DataFrame([{'word': w, 'vector':  spaces[c][w]}  for w in spaces[c].keys()]))
-                    for c in combination]
+    continue
+
+    # lmi of all vectors. takes a long time
+    #lmi_vectors = [lmi(pd.DataFrame([{'word': w, 'vector':  spaces[c][w]}  for w in spaces[c].keys()]))
+    # lmi of only the ones we care about. faster, but inaccurate.
+    lmi_vectors = [lmi(pd.DataFrame([{'word': w, 'vector':  spaces[c][w]}  for w in keepwords])) for c in combination]
     zipped_vectors = zip(*[sp.vector for sp in lmi_vectors])
     joined_lmi = pd.DataFrame([{'word': w, 'vector': join_vectors(zv)} for w, zv in zip(keepwords, zipped_vectors)])
     print "LMI:"
-    all_params(joined_lmi, method)
+    all_params(joined_lmi, 'cos')
 
     if False and len(combination) == 2:
         # sweet, we can do CCA:
