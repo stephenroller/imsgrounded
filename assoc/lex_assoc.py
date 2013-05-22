@@ -51,7 +51,7 @@ with codecs.getreader('utf-8')(open(assoc_file)) as f:
             logging.info( "ignoring line b/c the response is the cue...")
             num_ignored += 1
             continue
-        if resp not in vocab:
+        if False and resp not in vocab:
             #logging.info( "ignoring line b/c response (%s) is OOV..." % line)
             num_oov += 1
             continue
@@ -72,8 +72,12 @@ with codecs.getreader('utf-8')(sys.stdin) as vs:
 #with codecs.getreader('utf-8')(open(sys.argv[1])) as vs:
     for line in vs:
         line = line.strip()
-        dim, target, weight = line.split("\t")
-        weight = float(weight)
+        #dim, target, weight = line.split("\t")
+        #weight = float(weight)
+        target, dim, freq, lmi, pmi = line.split("\t")
+        lmi = float(freq) * float(pmi)
+        #weight = float(freq)
+        weight = lmi
         if target not in targets:
             fast_target_lookup[target[:target.rindex('/')]].append(len(targets))
             targets[target] = len(targets)
