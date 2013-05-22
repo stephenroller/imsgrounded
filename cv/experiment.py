@@ -87,6 +87,7 @@ def lmi(space):
     py = sum(M) / tt
     px = sum(M.T).T / tt
     pxy = M / float(tt)
+    #pxy = M
     pxpy = np.dot(px, py)
     pmi = np.log2(pxy) - np.log2(pxpy)
     lmi = np.multiply(pxy, pmi)
@@ -169,8 +170,8 @@ for combination in combinations(spaces.keys()):
         print "(All Pairs)"
         all_params(vectors, method)
 
-    continue
-    lmi_vectors = [lmi(pd.DataFrame([{'word': w, 'vector':  spaces[c][w]}  for w in keepwords]))
+    #continue
+    lmi_vectors = [lmi(pd.DataFrame([{'word': w, 'vector':  spaces[c][w]}  for w in spaces[c].keys()]))
                     for c in combination]
     zipped_vectors = zip(*[sp.vector for sp in lmi_vectors])
     joined_lmi = pd.DataFrame([{'word': w, 'vector': join_vectors(zv)} for w, zv in zip(keepwords, zipped_vectors)])

@@ -18,19 +18,31 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# Extended and modified 2013 by Stephen Roller <roller@cs.utexas.edu>
+
 import datetime
 import sys, re, time, string
 import numpy as n
-#from scipy.special import gammaln, psi
+import logging
+import argparse
+import os
 from collections import Counter
 from scipy.special import gammaln
 from xmod import vdigamma as psi
 from random import sample, seed
-from aesir import itersplit
+from aesir import itersplit, row_norm, ONE_HOUR
 
-seed(100000001)
-n.random.seed(100000001)
-meanchangethresh = 0.001
+logging.basicConfig(
+    format="[ %(levelname)-10s %(module)-8s %(asctime)s  %(relativeCreated)-10d ]  %(message)s",
+    datefmt="%H:%M:%S:%m",
+    level=logging.DEBUG)
+
+MEAN_CHANGE_THRESH = 0.001
+DEBUG = False
+
+if DEBUG:
+    seed(100000001)
+    n.random.seed(100000001)
 
 def dirichlet_expectation(alpha):
     """
@@ -91,6 +103,11 @@ class OnlineLDA:
         self._Elogbeta = dirichlet_expectation(self._lambda)
         self._expElogbeta = n.exp(self._Elogbeta)
 
+        # bookkeeping stuff
+        self.timediffs = []
+        self.perwordbounds = []
+        self.max_iteration = 0
+
     def do_e_step(self, docs):
         """
         Given a mini-batch of documents, estimates the parameters
@@ -143,7 +160,7 @@ class OnlineLDA:
                 phinorm = n.dot(expElogthetad, expElogbetad) + 1e-100
                 # If gamma hasn't changed much, we're done.
                 meanchange = n.mean(abs(gammad - lastgamma))
-                if (meanchange < meanchangethresh):
+                if (meanchange < MEAN_CHANGE_THRESH):
                     break
             gamma[d, :] = gammad
             # Contribution of document d to the expected sufficient
@@ -252,10 +269,78 @@ class OnlineLDA:
 
         return(score)
 
+    def save_model(self, filename):
+        n.savez_compressed(filename + ".tmp.npz",
+                #phi=row_norm(self._lambda),
+                phi=self._lambda,
+                psi=n.ones((self._K, 1))/self._K,
+                max_iteration=self._updatect,
+                k=self._K,
+                timediffs=self.timediffs,
+                perwordbounds=self.perwordbounds,
+                eta = self._eta,
+                tau0 = self._tau0,
+                alpha = self._alpha,
+                )
+        os.rename(filename + ".tmp.npz", filename)
+
+    def load_model(self, filename):
+        m = n.load(filename)
+        self._lambda = m['phi']
+        self._K = m['k']
+        self._updatect = m['max_iteration']
+        self._eta = m['eta']
+        self._tau0 = m['tau0']
+        self._alpha = m['alpha']
+        self.timediffs = list(m['timediffs'])
+        self.perwordbounds = list(m['perwordbounds'])
+
+        # reinitialize the variational distribution q(beta|lambda)
+        self._Elogbeta = dirichlet_expectation(self._lambda)
+        self._expElogbeta = n.exp(self._Elogbeta)
+
+    def inference(self, corpus, batchsize, max_iterations, model_file):
+        D = self._D
+        batchsize = min(batchsize, D)
+        # keep track of docs seen
+        docs_seen = Counter()
+        bigtic = datetime.datetime.now()
+        try:
+            save_tic = datetime.datetime.now()
+            for iteration in xrange(self._updatect + 1, max_iterations + 1):
+                tic = datetime.datetime.now()
+                docset_ids = sample(xrange(D), batchsize)
+                docs_seen.update(docset_ids)
+                docset = (corpus[0][docset_ids], corpus[1][docset_ids])
+                (gamma, bound) = self.update_lambda(docset)
+                (wordids, wordcts) = parse_doc_list(docset)
+                perwordbound = bound * len(docset_ids) / (D * sum(n.sum(doc) for doc in wordcts))
+                toc = datetime.datetime.now()
+                logging.info('%4d [%15s/%15s]:  rho_t = %1.5f,  perp est = (%8f) [seen = %d/%d]' %
+                    (iteration, toc - tic, toc - bigtic, self._rhot, n.exp(-perwordbound), len(docs_seen), D))
+                self.perwordbounds.append(n.exp(-perwordbound))
+                self.timediffs.append((toc - tic).total_seconds())
+                if toc - save_tic >= ONE_HOUR:
+                    save_tic = toc
+                    logging.info("Processed for one hour. Saving model...")
+                    self.save_model(model_file)
+        except KeyboardInterrupt:
+            logging.info("Terminated early...")
+            pass
+
+        bigtoc = datetime.datetime.now()
+        logging.info("Total learning runtime: %s" % (bigtoc - bigtic))
+        logging.info("Done with training. Saving model...")
+        self.save_model(model_file)
+
+
+
+
+
 # Reads in the corpus
 def read_andrews(filename):
     tic = datetime.datetime.now()
-    print "reading corpus"
+    logging.info("reading corpus...")
     wordids = []
     wordcts = []
     with open(filename) as f:
@@ -273,45 +358,57 @@ def read_andrews(filename):
     wordids = n.array(wordids)
     wordcts = n.array(wordcts)
     toc = datetime.datetime.now()
-    print "corpus read. let's do this. (took %s)" % (toc - tic)
+    logging.info("finished reading corpus. (took %s)" % (toc - tic))
     return (wordids, wordcts)
 
 def main():
-    corpus = read_andrews("andrews.txt")
+
+    parser = argparse.ArgumentParser(
+                description='Variational inference for Andrews model.')
+    parser.add_argument('--input', '-i', metavar='FILE',
+                        help='Load a precreated Numpy Array as the data matrix.')
+    parser.add_argument('--output', '-o', metavar='FILE', help='Save the model.')
+    parser.add_argument('--topics', '-k', metavar='INT', default=100, type=int,
+                        help='The number of topics to load.')
+    parser.add_argument('--iterations', '-I', metavar='INT', default=1000, type=int,
+                        help='Number of iterations.')
+    parser.add_argument('--tau0', '-T', metavar='INT', default=32, type=int,
+                        help='Sets the tau0 hyperparameter.')
+    parser.add_argument('--kappa', '-K', metavar='FLOAT', type=float, default=0.7,
+                        help='Sets the kappa hyperparameter.')
+    parser.add_argument('--batchsize', '-S', metavar='INT', type=int, default=1024,
+                        help='The size of the mini-batches.')
+    parser.add_argument('--continue', '-c', action='store_true', dest='kontinue',
+                        help='Continue computing from an existing model.')
+    args = parser.parse_args()
+
+    logging.info("Online Variational Bayes inference.")
+    logging.info("Calling read_andrews")
+    corpus = read_andrews(args.input)
+    logging.info("Finished reading corpus.")
+
     D = len(corpus[0])
-    K = 200
-    batchsize = min(1024, D)
     vocab = range(max(wid for doc in corpus[0] for wid in doc)+1)
-    documentstoanalyze = 20 * (int(D/batchsize) + 1)
-    TAU0 = 1
-    KAPPA = 0.5
-    olda = OnlineLDA(vocab, K, D, 1./K, 1./K, TAU0, KAPPA)
-    bigtic = datetime.datetime.now()
-    docs_seen = Counter()
-    iteration = 0
-    try:
-        while True:
-            iteration = iteration + 1
-            tic = datetime.datetime.now()
-            docset_ids = sample(xrange(D), batchsize)
-            docs_seen.update(docset_ids)
-            docset = (corpus[0][docset_ids], corpus[1][docset_ids])
-            (gamma, bound) = olda.update_lambda(docset)
-            (wordids, wordcts) = parse_doc_list(docset)
-            perwordbound = bound * len(docset_ids) / (D * sum(n.sum(doc) for doc in wordcts))
-            toc = datetime.datetime.now()
-            print '%4d [%15s/%15s]:  rho_t = %1.5f,  held-out perplexity estimate = (%8f) [seen = %d]' % \
-                (iteration, toc - tic, toc - bigtic, olda._rhot, n.exp(-perwordbound), len(docs_seen))
-    except KeyboardInterrupt:
-        pass
 
-    bigtoc = datetime.datetime.now()
-    print "Total learning runtime: %s" % (bigtoc - bigtic)
-    from svi import row_norm
-    n.savez_compressed("lambda-500-2.npz", k=K, phi=row_norm(olda._lambda), psi=n.ones((K, 1))/K)
+    k = args.topics
+    batchsize = args.batchsize
+    tau0 = args.tau0
+    kappa = args.kappa
+    numiterations = args.iterations
 
+    logging.info("Initializing OnlineLDA object.")
+    olda = OnlineLDA(vocab, k, D, 1./k, 1./k, tau0, kappa)
+    if args.kontinue:
+        logging.info("Attemping to resume from %s." % args.output)
+        try:
+            olda.load_model(args.output)
+        except IOError:
+            logging.warning("IOError when loading old model. Starting from the beginning.")
 
-
+    logging.info("Starting inference.")
+    olda.inference(corpus, batchsize, numiterations, args.output)
+    logging.info("Finished with inference.")
 
 if __name__ == '__main__':
     main()
+
