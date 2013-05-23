@@ -40,10 +40,6 @@ logging.basicConfig(
 MEAN_CHANGE_THRESH = 0.001
 DEBUG = False
 
-if DEBUG:
-    seed(100000001)
-    n.random.seed(100000001)
-
 def dirichlet_expectation(alpha):
     """
     For a vector theta ~ Dir(alpha), computes E[log(theta)] given alpha.
@@ -380,7 +376,17 @@ def main():
                         help='The size of the mini-batches.')
     parser.add_argument('--continue', '-c', action='store_true', dest='kontinue',
                         help='Continue computing from an existing model.')
+    parser.add_argument('--eta', metavar='FLOAT', type=float,
+                        help='Hyperparamater eta. (Default 1/k)')
+    parser.add_argument('--alpha', metavar='FLOAT', type=float,
+                        help='Hyperparameter alpha. (Default 1/k)')
+    parser.add_argument('--randomseed', metavar='INT', type=int,
+                        help='Supply the seed for the random number generator.')
     args = parser.parse_args()
+
+    if args.randomseed:
+        seed(args.randomseed)
+        n.random.seed(args.randomseed)
 
     logging.info("Online Variational Bayes inference.")
     logging.info("Calling read_andrews")
@@ -395,9 +401,11 @@ def main():
     tau0 = args.tau0
     kappa = args.kappa
     numiterations = args.iterations
+    eta = args.eta and args.eta or 1./k
+    alpha = args.alpha and args.alpha or 1./k
 
     logging.info("Initializing OnlineLDA object.")
-    olda = OnlineLDA(vocab, k, D, 1./k, 1./k, tau0, kappa)
+    olda = OnlineLDA(vocab, k, D, alpha, eta, tau0, kappa)
     if args.kontinue:
         logging.info("Attemping to resume from %s." % args.output)
         try:
