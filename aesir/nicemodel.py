@@ -22,7 +22,9 @@ def load_labels(filename):
             return {int(i):w for i,w in lines}
 
 def ranked_list(probabilities, n):
-    return sorted(enumerate(probabilities), key=lambda x: x[1], reverse=True)[:n]
+    probabilities = probabilities / probabilities.sum()
+    with_ids = ((i, p) for i, p in enumerate(probabilities) if p > 1e-4)
+    return sorted(with_ids, key=lambda x: x[1], reverse=True)[:n]
 
 def pad_same(column, extra=2):
     width = max(len(l) for l in column) + extra
@@ -58,6 +60,8 @@ def main():
     args = parser.parse_args()
 
     model = np.load(args.model)
+    phi = np.ascontiguousarray(model['phi'])
+    psi = np.ascontiguousarray(model['psi'])
 
     label_vocab = load_labels(args.vocab)
     label_features = load_labels(args.features)
@@ -72,8 +76,8 @@ def main():
 
     if args.topics or args.detailedtopics:
         for k in xrange(model['k']):
-            bestphi = ranked_list(model['phi'][k], TOPIC_WORDS_SHOW)
-            bestpsi = ranked_list(model['psi'][k], TOPIC_FEATS_SHOW)
+            bestphi = ranked_list(phi[k], TOPIC_WORDS_SHOW)
+            bestpsi = ranked_list(psi[k], TOPIC_FEATS_SHOW)
 
             topic_str = []
             topic_str.append("Topic %d:" % k)
@@ -133,7 +137,7 @@ def main():
                 continue
             m = mappings[ww]
             word = label_vocab[m]
-            probs = model['phi'][:,m]
+            probs = phi[:,m]
             if not args.dont_norm:
                 probs = probs / np.sum(probs)
             niceword = word[:word.rindex("/")]
@@ -152,7 +156,7 @@ def main():
 
     if args.all_words:
         for wid, w in label_vocab.iteritems():
-            probs = model['phi'][:,wid]
+            probs = phi[:,wid]
             if '/NN' in w:
                 # hack for later
                 w = w[:w.rindex('/')]

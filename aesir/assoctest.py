@@ -84,7 +84,7 @@ def main():
     args = parser.parse_args()
 
     model = np.load(args.model)
-    phi = row_norm(model["phi"].T)
+    phi = row_norm(np.ascontiguousarray(model["phi"].T))
     #pi = safe_pi_read(args.model)
 
     label_vocab = load_labels(args.vocab)
