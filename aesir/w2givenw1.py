@@ -22,7 +22,9 @@ target_labels_file = '/scratch/01813/roller/corpora/webko/TermDoc/target-labels.
 vocab_labels = load_labels(target_labels_file)
 vocab_labels = {w : i for i, w in vocab_labels.iteritems()}
 
+from onlineldavb import dirichlet_expectation
 phi = np.ascontiguousarray(np.load(model_file)['phi'])
+phi = np.exp(dirichlet_expectation(phi))
 
 topic_normed = col_norm(phi)
 word_normed = row_norm(phi)
