@@ -277,6 +277,7 @@ class OnlineLDA:
                 eta = self._eta,
                 tau0 = self._tau0,
                 alpha = self._alpha,
+                expElogbeta = self._expElogbeta,
                 )
         os.rename(filename + ".tmp.npz", filename)
 
@@ -290,6 +291,7 @@ class OnlineLDA:
         self._alpha = m['alpha']
         self.timediffs = list(m['timediffs'])
         self.perwordbounds = list(m['perwordbounds'])
+        self._expElogbeta = m['expElogbeta']
 
         # reinitialize the variational distribution q(beta|lambda)
         self._Elogbeta = dirichlet_expectation(self._lambda)
