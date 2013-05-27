@@ -61,6 +61,7 @@ def main():
 
     model = np.load(args.model)
     phi = np.ascontiguousarray(model['phi'])
+    #phi = np.ascontiguousarray(model['expElogbeta'])
     psi = np.ascontiguousarray(model['psi'])
 
     label_vocab = load_labels(args.vocab)
