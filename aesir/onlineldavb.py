@@ -103,6 +103,7 @@ class OnlineLDA:
         self.timediffs = []
         self.perwordbounds = []
         self.max_iteration = 0
+        self.times_doc_seen = n.zeros(D)
 
     def do_e_step(self, docs):
         """
@@ -278,6 +279,7 @@ class OnlineLDA:
                 tau0 = self._tau0,
                 alpha = self._alpha,
                 expElogbeta = self._expElogbeta,
+                times_doc_seen = self.times_doc_seen,
                 )
         os.rename(filename + ".tmp.npz", filename)
 
@@ -292,6 +294,7 @@ class OnlineLDA:
         self.timediffs = list(m['timediffs'])
         self.perwordbounds = list(m['perwordbounds'])
         self._expElogbeta = m['expElogbeta']
+        self.times_doc_seen = m['times_doc_seen']
 
         # reinitialize the variational distribution q(beta|lambda)
         self._Elogbeta = dirichlet_expectation(self._lambda)
@@ -301,26 +304,25 @@ class OnlineLDA:
         D = self._D
         batchsize = min(batchsize, D)
         # keep track of docs seen
-        docs_seen = Counter()
         bigtic = datetime.datetime.now()
         try:
             save_tic = datetime.datetime.now()
             for iteration in xrange(self._updatect + 1, max_iterations + 1):
                 tic = datetime.datetime.now()
                 docset_ids = sample(xrange(D), batchsize)
-                docs_seen.update(docset_ids)
                 docset = (corpus[0][docset_ids], corpus[1][docset_ids])
                 (gamma, bound) = self.update_lambda(docset)
                 (wordids, wordcts) = parse_doc_list(docset)
                 perwordbound = bound * len(docset_ids) / (D * sum(n.sum(doc) for doc in wordcts))
                 toc = datetime.datetime.now()
-                logging.info('%4d [%15s/%15s]:  rho_t = %1.5f,  perp est = (%8f) [seen = %d/%d]' %
-                    (iteration, toc - tic, toc - bigtic, self._rhot, n.exp(-perwordbound), len(docs_seen), D))
+                self.times_doc_seen[docset_ids] += 1
+                logging.info('(%4d) %4d [%15s/%15s]:  rho_t = %1.5f,  perp est = (%8f) [seen = %d/%d]' %
+                    (self._K, iteration, toc - tic, toc - bigtic, self._rhot, n.exp(-perwordbound), n.sum(self.times_doc_seen > 0), D))
                 self.perwordbounds.append(n.exp(-perwordbound))
                 self.timediffs.append((toc - tic).total_seconds())
                 if toc - save_tic >= ONE_HOUR:
                     save_tic = toc
-                    logging.info("Processed for one hour. Saving model...")
+                    logging.info("Processed for one hour. Saving model to %s..." % model_file)
                     self.save_model(model_file)
         except KeyboardInterrupt:
             logging.info("Terminated early...")
