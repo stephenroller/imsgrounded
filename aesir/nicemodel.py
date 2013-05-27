@@ -62,6 +62,7 @@ def main():
     model = np.load(args.model)
     from onlineldavb import dirichlet_expectation
     phi = np.ascontiguousarray(model['phi'])
+    #phi = np.ascontiguousarray(model['expElogbeta'])
     #phi = np.exp(dirichlet_expectation(phi))
     psi = np.ascontiguousarray(model['psi'])
 
