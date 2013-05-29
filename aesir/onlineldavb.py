@@ -273,7 +273,6 @@ class OnlineLDA:
 
     def save_model(self, filename):
         n.savez_compressed(filename + ".tmp.npz",
-                #phi=row_norm(self._lambda),
                 phi=self._lambda,
                 psi=n.ones((self._K, 1))/self._K,
                 max_iteration=self._updatect,
@@ -283,7 +282,6 @@ class OnlineLDA:
                 eta = self._eta,
                 tau0 = self._tau0,
                 alpha = self._alpha,
-                expElogbeta = self._expElogbeta,
                 times_doc_seen = self.times_doc_seen,
                 )
         os.rename(filename + ".tmp.npz", filename)
@@ -298,7 +296,6 @@ class OnlineLDA:
         self._alpha = m['alpha']
         self.timediffs = list(m['timediffs'])
         self.perwordbounds = list(m['perwordbounds'])
-        self._expElogbeta = m['expElogbeta']
         self.times_doc_seen = m['times_doc_seen']
 
         # reinitialize the variational distribution q(beta|lambda)
