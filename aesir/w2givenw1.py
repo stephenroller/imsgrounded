@@ -22,9 +22,9 @@ target_labels_file = '/scratch/01813/roller/corpora/webko/TermDoc/target-labels.
 vocab_labels = load_labels(target_labels_file)
 vocab_labels = {w : i for i, w in vocab_labels.iteritems()}
 
-from onlineldavb import dirichlet_expectation
+from onlineldavb import dirichlet_expectation_2
 phi = np.ascontiguousarray(np.load(model_file)['phi'])
-phi = np.exp(dirichlet_expectation(phi))
+#phi = np.exp(dirichlet_expectation_2(phi))
 
 topic_normed = col_norm(phi)
 word_normed = row_norm(phi)
@@ -59,7 +59,7 @@ for i, row in comp_tab.iterrows():
 
 disp_tab = pd.DataFrame(dict(compound=compound, const=const, ratings=ratings, w2givenw1=w2givenw1, w1givenw2=w1givenw2))
 #print disp_tab.sort('ratings').to_string()
-disp_tab.to_csv(sys.argv[2], index=False, encoding='utf-8')
+#disp_tab.to_csv(sys.argv[2], index=False, encoding='utf-8')
 
 print
 print "shape =", disp_tab.shape
