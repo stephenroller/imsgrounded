@@ -2,8 +2,12 @@
 
 import sys
 import numpy as np
+from itertools import izip
 
-HUMAN=True
+HUMAN=False
+
+if not HUMAN:
+    print "iteration,k,time,eval"
 
 for f in sys.argv[1:]:
     try:
@@ -12,12 +16,20 @@ for f in sys.argv[1:]:
         print "%s didn't work, skipping" % f
         continue
 
-    if HUMAN:
-        i = len(m["loglikelihoods"])
-        print "%s [%d]: %f" % (f, i, m["loglikelihoods"][-1])
+    if "loglikelihoods" in m:
+        key = "loglikelihoods"
     else:
-        ll = data["loglikelihoods"]
-        k = data["k"]
-        for i, l in enumerate(ll[1:], 2):
-            print "%d,%d,%f" % (i, k, l)
+        key = "perwordbounds"
+
+    timediffs = np.cumsum(m['timediffs'])
+
+
+    if HUMAN:
+        i = len(m[key])
+        print "%s [%d]: %f" % (f, i, m[key][-1])
+    else:
+        ll = m[key]
+        k = m["k"]
+        for i, (l, t) in enumerate(izip(ll, timediffs), 1):
+            print "%d,%d,%f,%f" % (i, k, t, l)
 
