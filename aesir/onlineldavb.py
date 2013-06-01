@@ -59,10 +59,6 @@ def dirichlet_expectation_1(alpha):
 
 
 def gamma_estimation_step(alpha, expElogthetad, cts, phinorm, expElogbetad):
-    gammad = alpha + expElogthetad * n.dot(n.divide(cts, phinorm), expElogbetad.T)
-    Elogthetad = dirichlet_expectation_1(gammad)
-    expElogthetad = n.exp(Elogthetad)
-    phinorm = n.dot(expElogthetad, expElogbetad) + 1e-100
     return (gammad, Elogthetad, expElogthetad, phinorm)
 
 
@@ -161,7 +157,10 @@ class OnlineLDA:
                 # We represent phi implicitly to save memory and time.
                 # Substituting the value of the optimal phi back into
                 # the update for gamma gives this update. Cf. Lee&Seung 2001.
-                gammad, Elogthetad, expElogthetad, phinorm = gamma_estimation_step(self._alpha, expElogthetad, cts, phinorm, expElogbetad)
+                gammad = alpha + expElogthetad * n.dot(n.divide(cts, phinorm), expElogbetad.T)
+                Elogthetad = dirichlet_expectation_1(gammad)
+                expElogthetad = n.exp(Elogthetad)
+                phinorm = n.dot(expElogthetad, expElogbetad) + 1e-100
                 # If gamma hasn't changed much, we're done.
                 meanchange = n.sum(n.abs(gammad - lastgamma))
                 if (meanchange < self._K * MEAN_CHANGE_THRESH):
