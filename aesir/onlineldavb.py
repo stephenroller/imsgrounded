@@ -138,22 +138,32 @@ class OnlineLDA:
         Elogtheta = dirichlet_expectation_2(gamma)
         expElogtheta = n.exp(Elogtheta)
 
+        # book keeping for updating lambda later.
         sstats = n.zeros(self._lambda.shape).T
+
         # Now, for each document d update that document's gamma and phi
         for d in xrange(batchD):
             # These are mostly just shorthand (but might help cache locality)
             ids = wordids[d]
             cts = wordcts[d]
+
+            # k sized vectors, distr of topics over doc
             gammad = gamma[d]
             Elogthetad = Elogtheta[d]
             expElogthetad = expElogtheta[d]
+
             expElogbetad = n.take(self._expElogbeta, ids, axis=1)
-            # The optimal phi_{dwk} is proportional to 
-            # expElogthetad_k * expElogbetad_w. phinorm is the normalizer.
+
+            # The optimal phi_{dwk} is proportional to
+            #    expElogthetad_k * expElogbetad_w = exp { Elogthetad_k + Elogbetad_w }
+            # phinorm is the normalizer.
             phinorm = n.dot(expElogthetad, expElogbetad) + 1e-100
+
             # Iterate between gamma and phi until convergence
             for it in range(0, 100):
+                # keep track of convergence
                 lastgamma = gammad
+
                 # We represent phi implicitly to save memory and time.
                 # Substituting the value of the optimal phi back into
                 # the update for gamma gives this update. Cf. Lee&Seung 2001.
@@ -161,14 +171,18 @@ class OnlineLDA:
                 Elogthetad = dirichlet_expectation_1(gammad)
                 expElogthetad = n.exp(Elogthetad)
                 phinorm = n.dot(expElogthetad, expElogbetad) + 1e-100
+
                 # If gamma hasn't changed much, we're done.
                 meanchange = n.sum(n.abs(gammad - lastgamma))
                 if (meanchange < self._K * MEAN_CHANGE_THRESH):
                     break
+
+            # update our global copy of gamma
             gamma[d] = gammad
+
             # Contribution of document d to the expected sufficient
             # statistics for the M step.
-            sstats[ids,:] += n.outer(cts/phinorm, expElogthetad)
+            sstats[ids,:] += n.outer(cts / phinorm, expElogthetad)
 
         # This step finishes computing the sufficient statistics for the
         # M step, so that
