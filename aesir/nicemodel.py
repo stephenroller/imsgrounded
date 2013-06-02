@@ -60,7 +60,7 @@ def main():
     args = parser.parse_args()
 
     model = np.load(args.model)
-    from onlineldavb import dirichlet_expectation
+    #from onlineldavb import dirichlet_expectation
     phi = np.ascontiguousarray(model['phi'])
     #phi = np.ascontiguousarray(model['expElogbeta'])
     #phi = np.exp(dirichlet_expectation(phi))
@@ -80,7 +80,7 @@ def main():
     if args.topics or args.detailedtopics:
         for k in xrange(model['k']):
             bestphi = ranked_list(phi[k], TOPIC_WORDS_SHOW)
-            bestpsi = ranked_list(psi[k], TOPIC_FEATS_SHOW)
+            bestpsi = ranked_list(psi[k][1:], TOPIC_FEATS_SHOW)
 
             topic_str = []
             topic_str.append("Topic %d:" % k)
@@ -93,6 +93,7 @@ def main():
 
             if args.topics:
                 print '\n'.join(topic_str)
+                print
             if args.detailedtopics:
                 topic_strings[k] = pad_same(topic_str)
 
