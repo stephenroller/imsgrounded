@@ -55,10 +55,6 @@ def dirichlet_expectation_1(alpha):
     return (psi(alpha) - psi(n.sum(alpha)))
 
 
-def gamma_estimation_step(alpha, expElogthetad, cts, phinorm, expElogbetad):
-    return (gammad, Elogthetad, expElogthetad, phinorm)
-
-
 class OnlineLDA:
     """
     Implements online VB for LDA as described in (Hoffman et al. 2010).
@@ -244,10 +240,20 @@ class OnlineLDA:
 
         # Update lambda based on documents.
         self._lambda = self._lambda * (1-rhot) + rhot * (self._eta + self._D * wstats / len(docs[0]))
+        # hardcode equal probability for each of the zero words. technically this isn't necessary.
+        self._lambda[:,0] = self._lambda[:,0].mean()
+        # update expectations
         self._Elogbeta = dirichlet_expectation_2(self._lambda)
         self._expElogbeta = n.exp(self._Elogbeta)
+
         # update pi based on documents
         self._omega = self._omega * (1 - rhot) + rhot * (self._mu + self._D * fstats / len(docs[0]))
+        # hardcode equal probability for each the features
+        self._omega[:,0] = self._omega[:,0].mean()
+        # update expectations
+        self._Elogpi = dirichlet_expectation_2(self._omega)
+        self._ExpElogpi = n.exp(self._Elogpi)
+
 
         # mark that we completed this iteration
         self._updatect += 1
@@ -264,14 +270,6 @@ class OnlineLDA:
         The output of this function is going to be noisy, but can be
         useful for assessing convergence.
         """
-
-        # This is to handle the case where someone just hands us a single
-        # document, not in a list.
-        if (type(docs).__name__ == 'string'):
-            temp = list()
-            temp.append(docs)
-            docs = temp
-
         (wordcts, wordids, featids) = parse_doc_list(docs)
         batchD = len(wordids)
 
@@ -279,13 +277,15 @@ class OnlineLDA:
         Elogtheta = dirichlet_expectation_2(gamma)
         expElogtheta = n.exp(Elogtheta)
 
-        # E[log p(docs | theta, beta)]
+        # E[log p(docs | theta, beta, pi)]
         for d in xrange(batchD):
             gammad = gamma[d]
-            ids = wordids[d]
+            wids = wordids[d]
+            fids = featids[d]
             cts = n.array(wordcts[d])
-            right = n.take(self._Elogbeta, ids, axis=1).T
-            temp = Elogtheta[d] + right[:,:]
+            right = n.take(self._Elogbeta, wids, axis=1).T
+            right2 = n.take(self._Elogpi, fids, axis=1).T
+            temp = Elogtheta[d] + (right + right2)[:,:]
             tmax_v = n.max(temp, axis=1)
             phinorm = n.log(n.sum(n.exp(temp[:,:].T - tmax_v), axis=0)) + tmax_v
             score += n.dot(cts, phinorm)
