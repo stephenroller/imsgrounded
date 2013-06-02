@@ -5,9 +5,16 @@ import sys
 from util import *
 from collections import Counter
 
-MIN_COUNT = 0
+def tryint(v):
+    try:
+        return int(v)
+    except ValueError:
+        return float(v)
+
+MIN_COUNT = 2
 ADD_MULTIPLE = True
-IGNORE_NONNN = True
+IGNORE_NONNN = False
+PRINT_IDS = True
 
 f = openfile(sys.argv[1])
 f.next()
@@ -39,10 +46,12 @@ for line in f:
 cols = sorted(w for w, v in cols.iteritems() if v >= MIN_COUNT)
 tars = sorted(tars)
 
-for t in tars:
-    as_str = " ".join(repr(data[t].get(c, 0)) for c in cols)
-    print "%s\t%s" % (t, as_str)
-
-
+if not PRINT_IDS:
+    for t in tars:
+        as_str = " ".join(repr(tryint(data[t].get(c, 0))) for c in cols)
+        print "%s\t%s" % (t, as_str)
+else:
+    for i, w in enumerate(cols, 1):
+        print '%d\t%s' % (i, w)
 
 
