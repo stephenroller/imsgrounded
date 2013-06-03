@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+import os.path
 import argparse
 import numpy as np
 import pandas as pd
@@ -110,6 +111,8 @@ def main():
             cnstcmpd_correct += (gold == (similarities1['cnst|cmpd'] < similarities2['cnst|cmpd']))
 
         prod = 100.0 / pairs_compared
+        model_eval['filename'] = model
+        model_eval['model_type'] = os.path.dirname(model)
         model_eval['acc_baseline'] = baseline_correct / pairs_compared
         model_eval['acc_jsdiv'] = jsdiv_correct / pairs_compared
         model_eval['acc_cmpd|cnst'] = cmpdcnst_correct / pairs_compared
