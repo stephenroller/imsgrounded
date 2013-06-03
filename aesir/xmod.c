@@ -11,9 +11,6 @@
 #include <pthread.h>
 #include "fastapprox.h"
 
-#define MAGIC_GAMMA_CONSTANT FLT_MAX
-#define GAMMA_THRESH (1e-9)
-
 #define QUEUE_INCREMENT 100
 
 // thread trackers
@@ -45,15 +42,11 @@ int NUM_TOPICS;
 
 static PyObject* digamma(PyObject *self, PyObject *args) {
   float x;
-  if (!PyArg_ParseTuple(args, "f", &x)) {
+  if (!PyArg_ParseTuple(args, "d", &x)) {
     return NULL;
   }
 
-  float p;
-  if (x == 0.0)
-    p = MAGIC_GAMMA_CONSTANT;
-  else
-    p = fastdigamma(x);
+  float p = fastdigamma(x);
 
 
   return PyFloat_FromDouble(p);
@@ -70,10 +63,7 @@ static void v_digamma(char **args, npy_intp *dimensions, npy_intp *steps, void *
   for (i = 0; i < n; i++) {
     // BEGIN main ufunc computation
     tmp = *(double*)in;
-    if (tmp < GAMMA_THRESH)
-      *((double *)out) = MAGIC_GAMMA_CONSTANT;
-    else
-      *((double *)out) = fastdigamma(tmp);
+    *((double *)out) = fastdigamma(tmp);
     // END main ufunc computation
     in += in_step;
     out += out_step;
@@ -91,10 +81,7 @@ static void v_lngamma(char **args, npy_intp *dimensions, npy_intp *steps, void *
   for (i = 0; i < n; i++) {
     // BEGIN main ufunc computation
     tmp = *(double*)in;
-    if (tmp < GAMMA_THRESH)
-      *((double *)out) = MAGIC_GAMMA_CONSTANT;
-    else
-      *((double *)out) = fastlgamma(tmp);
+    *((double *)out) = fastlgamma(tmp);
     // END main ufunc computation
     in += in_step;
     out += out_step;
