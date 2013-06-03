@@ -55,6 +55,22 @@ def dirichlet_expectation_1(alpha):
     return (psi(alpha) - psi(n.sum(alpha)))
 
 
+def remove_redundancies(ids, update_matrix):
+    # in our E step, we'll need to update the feature and word ids with
+    # the updates. However, we can't just simply use fancy indexing,
+    # because redundancies in the matrix cause the second update of
+    # the same ID to get ignored. Our goal here is to reduce the size
+    # of this matrix so we can use the fancy indexing.
+    uniq_ids = list(set(ids))
+    uniq_ids_d = { id_: new_i for new_i, id_ in enumerate(uniq_ids) }
+    update_matrix_uniq = n.zeros((len(uniq_ids), update_matrix.shape[1]))
+    for old_i, id_ in enumerate(ids):
+        row = update_matrix[old_i]
+        new_id = uniq_ids_d[id_]
+        update_matrix_uniq[new_id] += row
+    return uniq_ids, update_matrix_uniq
+
+
 class OnlineLDA:
     """
     Implements online VB for LDA as described in (Hoffman et al. 2010).
@@ -194,8 +210,11 @@ class OnlineLDA:
 
             # TODO: THIS DOESN'T HANDLE REDUNDANT FIDS AND WIDS
             update_stats = n.outer(cts / phinorm, expElogthetad)
-            wstats[wids,:] += update_stats
-            fstats[fids,:] += update_stats
+            uniq_wids, update_stats_wids = remove_redundancies(wids, update_stats)
+            uniq_fids, update_stats_fids = remove_redundancies(fids, update_stats)
+
+            wstats[uniq_wids,:] += update_stats_wids
+            fstats[uniq_fids,:] += update_stats_fids
 
         # This step finishes computing the sufficient statistics for the
         # M step, so that
@@ -253,7 +272,6 @@ class OnlineLDA:
         # update expectations
         self._Elogpi = dirichlet_expectation_2(self._omega)
         self._ExpElogpi = n.exp(self._Elogpi)
-
 
         # mark that we completed this iteration
         self._updatect += 1
