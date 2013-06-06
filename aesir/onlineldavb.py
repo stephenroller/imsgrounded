@@ -382,9 +382,9 @@ class OnlineLDA:
                 perwordbound = bound * len(docset_ids) / (D * sum(n.sum(doc) for doc in wordcts))
                 toc = datetime.datetime.now()
                 self.times_doc_seen[docset_ids] += 1
-                logging.info('(%4d) %4d [%15s/%15s]:  rho_t = %1.5f,  perp est = (%8f) [seen = %d/%d]' %
-                    (self._K, iteration, toc - tic, toc - bigtic, self._rhot, n.exp(-perwordbound), n.sum(self.times_doc_seen > 0), D))
-                self.perwordbounds.append(n.exp(-perwordbound))
+                logging.info('(%4d) %4d [%15s/%15s]:  rho_t = %1.5f,  perwordbound = (%8f) [seen = %d/%d]' %
+                    (self._K, iteration, toc - tic, toc - bigtic, self._rhot, perwordbound, n.sum(self.times_doc_seen > 0), D))
+                self.perwordbounds.append(perwordbound)
                 self.timediffs.append((toc - tic).total_seconds())
                 if toc - save_tic >= ONE_HOUR:
                     save_tic = toc
