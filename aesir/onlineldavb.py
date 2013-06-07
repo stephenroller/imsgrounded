@@ -27,7 +27,8 @@ import logging
 import argparse
 import os
 from collections import Counter
-from xmod import vdigamma as psi, vlngamma as gammaln
+#from xmod import vdigamma as psi, vlngamma as gammaln
+from scipy.special import gammaln, psi
 from random import sample, seed
 from aesir import itersplit, row_norm, ONE_HOUR
 
@@ -63,11 +64,11 @@ def remove_redundancies(ids, update_matrix):
     # of this matrix so we can use the fancy indexing.
     uniq_ids = list(set(ids))
     uniq_ids_d = { id_: new_i for new_i, id_ in enumerate(uniq_ids) }
-    update_matrix_uniq = n.zeros((len(uniq_ids), update_matrix.shape[1]))
+    update_matrix_uniq = n.zeros((update_matrix.shape[0], len(uniq_ids)))
     for old_i, id_ in enumerate(ids):
-        row = update_matrix[old_i]
+        col = update_matrix[:,old_i]
         new_id = uniq_ids_d[id_]
-        update_matrix_uniq[new_id] += row
+        update_matrix_uniq[:,new_id] += col
     return uniq_ids, update_matrix_uniq
 
 
@@ -153,9 +154,9 @@ class OnlineLDA:
         expElogtheta = n.exp(Elogtheta)
 
         # book keeping for updating lambda later.
-        wstats = n.zeros(self._lambda.shape).T
+        wstats = n.zeros(self._lambda.shape)
         # and updating pi later
-        fstats = n.zeros(self._omega.shape).T
+        fstats = n.zeros(self._omega.shape)
 
         # Now, for each document d update that document's gamma and phi
         for d in xrange(batchD):
@@ -184,6 +185,8 @@ class OnlineLDA:
             phinorm = n.dot(expElogthetad, n.multiply(expElogbetad, expElogpid)) + 1e-100
             if DEBUG: print "phinorm shape:", phinorm.shape
 
+            n.set_printoptions(precision=2, linewidth=500, suppress=True)
+            if d == 0: print gammad
             # Iterate between gamma and phi until convergence
             for it in range(0, 100):
                 # keep track of convergence
@@ -192,7 +195,8 @@ class OnlineLDA:
                 # We represent phi implicitly to save memory and time.
                 # Substituting the value of the optimal phi back into
                 # the update for gamma gives this update. Cf. Lee&Seung 2001.
-                gammad = self._alpha + expElogthetad * n.dot(cts / phinorm, expElogbetad.T)
+                gammad = self._alpha + expElogthetad * n.dot(cts / phinorm, expElogbetad.T * expElogpid.T)
+                if d == 0: print gammad
                 Elogthetad = dirichlet_expectation_1(gammad)
                 expElogthetad = n.exp(Elogthetad)
                 phinorm = n.dot(expElogthetad, n.multiply(expElogbetad, expElogpid)) + 1e-100
@@ -208,20 +212,19 @@ class OnlineLDA:
             # Contribution of document d to the expected sufficient
             # statistics for the M step.
 
-            # TODO: THIS DOESN'T HANDLE REDUNDANT FIDS AND WIDS
-            update_stats = n.outer(cts / phinorm, expElogthetad)
+            update_stats = n.outer(expElogthetad.T, cts / phinorm)
             uniq_wids, update_stats_wids = remove_redundancies(wids, update_stats)
             uniq_fids, update_stats_fids = remove_redundancies(fids, update_stats)
 
-            wstats[uniq_wids,:] += update_stats_wids
-            fstats[uniq_fids,:] += update_stats_fids
+            wstats[:,uniq_wids] += update_stats_wids
+            fstats[:,uniq_fids] += update_stats_fids
 
         # This step finishes computing the sufficient statistics for the
         # M step, so that
         # wstats[k, w] = \sum_d n_{dw} * phi_{dwk}
         # = \sum_d n_{dw} * exp{Elogtheta_{dk} + Elogbeta_{kw}} / phinorm_{dw}.
-        wstats = wstats.T * self._expElogbeta
-        fstats = fstats.T * self._expElogpi
+        wstats = wstats * self._expElogbeta
+        fstats = fstats * self._expElogpi
 
         return (gamma, wstats, fstats)
 
@@ -271,7 +274,7 @@ class OnlineLDA:
         self._omega[:,0] = self._omega[:,0].mean()
         # update expectations
         self._Elogpi = dirichlet_expectation_2(self._omega)
-        self._ExpElogpi = n.exp(self._Elogpi)
+        self._expElogpi = n.exp(self._Elogpi)
 
         # mark that we completed this iteration
         self._updatect += 1
@@ -295,6 +298,7 @@ class OnlineLDA:
         Elogtheta = dirichlet_expectation_2(gamma)
         expElogtheta = n.exp(Elogtheta)
 
+        print "Score before p(docs | theta, beta, pi):", score
         # E[log p(docs | theta, beta, pi)]
         for d in xrange(batchD):
             gammad = gamma[d]
@@ -308,25 +312,34 @@ class OnlineLDA:
             phinorm = n.log(n.sum(n.exp(temp[:,:].T - tmax_v), axis=0)) + tmax_v
             score += n.dot(cts, phinorm)
 
+        print "Score after p(docs | theta, beta, pi):", score
         # E[log p(theta | alpha) - log q(theta | gamma)]
         score += n.sum((self._alpha - gamma)*Elogtheta)
         score += n.sum(gammaln(gamma) - gammaln(self._alpha))
         score += n.sum(gammaln(self._alpha*self._K) - gammaln(n.sum(gamma, 1)))
+        print "Score after p(theta | alpha) - log q(theta | gamma):", score
 
         # Compensate for the subsampling of the population of documents
         score = score * self._D / batchD
+        print "Score after compensating for subsampling:", score
 
         # E[log p(beta | eta) - log q (beta | lambda)]
         score += n.sum((self._eta-self._lambda)*self._Elogbeta)
         score += n.sum(gammaln(self._lambda) - gammaln(self._eta))
         score += n.sum(gammaln(self._eta*self._W) -
                        gammaln(n.sum(self._lambda, 1)))
+        print "Score after p(beta | eta):", score
 
         # E[log p(pi | mu) - log q (pi | omega)]
         score += n.sum((self._mu-self._omega)*self._Elogpi)
+        print "   +", n.sum((self._mu-self._omega)*self._Elogpi)
         score += n.sum(gammaln(self._omega) - gammaln(self._mu))
+        print "   +", n.sum(gammaln(self._omega) - gammaln(self._mu))
         score += n.sum(gammaln(self._mu*self._F) -
                        gammaln(n.sum(self._omega, 1)))
+        print "   +", n.sum(gammaln(self._mu*self._F) -
+                       gammaln(n.sum(self._omega, 1)))
+        print "Score after p(pi | mu):", score
         return score
 
     def save_model(self, filename):
