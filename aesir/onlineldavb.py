@@ -171,22 +171,15 @@ class OnlineLDA:
             expElogthetad = expElogtheta[d]
 
             Elogbetad = n.take(self._Elogbeta, wids, axis=1)
-            if DEBUG: print "betad shape:", Elogbetad.shape
             expElogbetad = n.take(self._expElogbeta, wids, axis=1)
             Elogpid = n.take(self._Elogpi, fids, axis=1)
-            if DEBUG: print "pid shape:", Elogpid.shape
             expElogpid = n.take(self._expElogpi, fids, axis=1)
 
             # The optimal phi_{dwk} is proportional to
             #    expElogthetad_k * expElogbetad_w * expElogpid_f = exp { Elogthetad_k + Elogbetad_w  + Elogpid_f }
             # phinorm is the normalizer.
-            if DEBUG: print "thetad shape:", Elogthetad.shape
-            # TODO: update this
             phinorm = n.dot(expElogthetad, n.multiply(expElogbetad, expElogpid)) + 1e-100
-            if DEBUG: print "phinorm shape:", phinorm.shape
 
-            n.set_printoptions(precision=2, linewidth=500, suppress=True)
-            if d == 0: print gammad
             # Iterate between gamma and phi until convergence
             for it in range(0, 100):
                 # keep track of convergence
@@ -196,7 +189,6 @@ class OnlineLDA:
                 # Substituting the value of the optimal phi back into
                 # the update for gamma gives this update. Cf. Lee&Seung 2001.
                 gammad = self._alpha + expElogthetad * n.dot(cts / phinorm, expElogbetad.T * expElogpid.T)
-                if d == 0: print gammad
                 Elogthetad = dirichlet_expectation_1(gammad)
                 expElogthetad = n.exp(Elogthetad)
                 phinorm = n.dot(expElogthetad, n.multiply(expElogbetad, expElogpid)) + 1e-100
@@ -298,7 +290,6 @@ class OnlineLDA:
         Elogtheta = dirichlet_expectation_2(gamma)
         expElogtheta = n.exp(Elogtheta)
 
-        print "Score before p(docs | theta, beta, pi):", score
         # E[log p(docs | theta, beta, pi)]
         for d in xrange(batchD):
             gammad = gamma[d]
@@ -312,34 +303,25 @@ class OnlineLDA:
             phinorm = n.log(n.sum(n.exp(temp[:,:].T - tmax_v), axis=0)) + tmax_v
             score += n.dot(cts, phinorm)
 
-        print "Score after p(docs | theta, beta, pi):", score
         # E[log p(theta | alpha) - log q(theta | gamma)]
         score += n.sum((self._alpha - gamma)*Elogtheta)
         score += n.sum(gammaln(gamma) - gammaln(self._alpha))
         score += n.sum(gammaln(self._alpha*self._K) - gammaln(n.sum(gamma, 1)))
-        print "Score after p(theta | alpha) - log q(theta | gamma):", score
 
         # Compensate for the subsampling of the population of documents
         score = score * self._D / batchD
-        print "Score after compensating for subsampling:", score
 
         # E[log p(beta | eta) - log q (beta | lambda)]
         score += n.sum((self._eta-self._lambda)*self._Elogbeta)
         score += n.sum(gammaln(self._lambda) - gammaln(self._eta))
         score += n.sum(gammaln(self._eta*self._W) -
                        gammaln(n.sum(self._lambda, 1)))
-        print "Score after p(beta | eta):", score
 
         # E[log p(pi | mu) - log q (pi | omega)]
         score += n.sum((self._mu-self._omega)*self._Elogpi)
-        print "   +", n.sum((self._mu-self._omega)*self._Elogpi)
         score += n.sum(gammaln(self._omega) - gammaln(self._mu))
-        print "   +", n.sum(gammaln(self._omega) - gammaln(self._mu))
         score += n.sum(gammaln(self._mu*self._F) -
                        gammaln(n.sum(self._omega, 1)))
-        print "   +", n.sum(gammaln(self._mu*self._F) -
-                       gammaln(n.sum(self._omega, 1)))
-        print "Score after p(pi | mu):", score
         return score
 
     def save_model(self, filename):
