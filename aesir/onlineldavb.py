@@ -64,11 +64,11 @@ def remove_redundancies(ids, update_matrix):
     # of this matrix so we can use the fancy indexing.
     uniq_ids = list(set(ids))
     uniq_ids_d = { id_: new_i for new_i, id_ in enumerate(uniq_ids) }
-    update_matrix_uniq = n.zeros((update_matrix.shape[0], len(uniq_ids)))
+    update_matrix_uniq = n.zeros(len(uniq_ids))
     for old_i, id_ in enumerate(ids):
-        col = update_matrix[:,old_i]
+        col = update_matrix[old_i]
         new_id = uniq_ids_d[id_]
-        update_matrix_uniq[:,new_id] += col
+        update_matrix_uniq[new_id] += col
     return uniq_ids, update_matrix_uniq
 
 
@@ -211,10 +211,10 @@ class OnlineLDA:
 
             # Contribution of document d to the expected sufficient
             # statistics for the M step.
-
-            update_stats = n.outer(expElogthetad.T, cts / phinorm)
-            uniq_wids, update_stats_wids = remove_redundancies(wids, update_stats)
-            uniq_fids, update_stats_fids = remove_redundancies(fids, update_stats)
+            uniq_wids, w_cts = remove_redundancies(wids, cts)
+            uniq_fids, f_cts = remove_redundancies(fids, cts)
+            update_stats_wids = n.outer(expElogthetad.T, w_cts / n.dot(expElogthetad, n.take(self._expElogbeta, uniq_wids, axis=1)))
+            update_stats_fids = n.outer(expElogthetad.T, f_cts / n.dot(expElogthetad, n.take(self._expElogpi, uniq_fids, axis=1)))
 
             wstats[:,uniq_wids] += update_stats_wids
             fstats[:,uniq_fids] += update_stats_fids
