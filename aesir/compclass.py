@@ -42,8 +42,8 @@ def main():
         iter = m['max_iteration']
         time = np.sum(m['timediffs'])
         phi = np.ascontiguousarray(m['phi'])
-        topic_normed = col_norm(phi)
-        word_normed = row_norm(phi)
+        topic_normed = row_norm(phi)
+        word_normed = col_norm(phi)
 
         model_eval = {'k': k, 'll': ll, 'iter': iter, 'time': time}
 
@@ -78,6 +78,7 @@ def main():
             rho, p = scipy.stats.spearmanr(tmp[m], tmp['human'])
             model_eval['rho_' + m] = rho
             model_eval['p_' + m] = p
+            model_eval['n'] = len(tmp[m])
 
 
 
