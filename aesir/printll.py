@@ -2,12 +2,13 @@
 
 import sys
 import numpy as np
+import os.path
 from itertools import izip
 
 HUMAN=False
 
 if not HUMAN:
-    print "iteration,k,time,eval"
+    print "model,type,iteration,k,time,eval"
 
 for f in sys.argv[1:]:
     try:
@@ -23,6 +24,7 @@ for f in sys.argv[1:]:
 
     timediffs = np.cumsum(m['timediffs'])
 
+    nmn=os.path.dirname(f)
 
     if HUMAN:
         i = len(m[key])
@@ -31,5 +33,5 @@ for f in sys.argv[1:]:
         ll = m[key]
         k = m["k"]
         for i, (l, t) in enumerate(izip(ll, timediffs), 1):
-            print "%d,%d,%f,%f" % (i, k, t, l)
+            print "%s,%s,%d,%d,%f,%f" % (f, nmn, i, k, t, l)
 
