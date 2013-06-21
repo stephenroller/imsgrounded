@@ -8,7 +8,7 @@ from itertools import izip
 HUMAN=False
 
 if not HUMAN:
-    print "model,type,iteration,k,time,eval"
+    print "model,type,iteration,k,time,eval,mu,eta,alpha"
 
 for f in sys.argv[1:]:
     try:
@@ -33,5 +33,5 @@ for f in sys.argv[1:]:
         ll = m[key]
         k = m["k"]
         for i, (l, t) in enumerate(izip(ll, timediffs), 1):
-            print "%s,%s,%d,%d,%f,%f" % (f, nmn, i, k, t, l)
+            print "%s,%s,%d,%d,%f,%f,%f,%f,%f" % (f, nmn, i, k, t, l, m["mu"], m["eta"], m["alpha"])
 

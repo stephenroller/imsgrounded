@@ -45,7 +45,7 @@ def main():
         topic_normed = row_norm(phi)
         word_normed = col_norm(phi)
 
-        model_eval = {'k': k, 'll': ll, 'iter': iter, 'time': time}
+        model_eval = dict(k=k, ll=ll, iter=iter, time=time, alpha=m['alpha'], eta=m['eta'], mu=m['mu'])
 
         similarities = {}
         for i, pair in comp_tab.iterrows():
