@@ -257,7 +257,7 @@ class OnlineLDA:
         # Update lambda based on documents.
         self._lambda = self._lambda * (1-rhot) + rhot * (self._eta + self._D * wstats / len(docs[0]))
         # hardcode equal probability for each of the zero words. technically this isn't necessary.
-        self._lambda[:,0] = self._lambda[:,0].mean()
+        self._lambda[:,0] = self._lambda[:,1:].mean()
         # update expectations
         self._Elogbeta = dirichlet_expectation_2(self._lambda)
         self._expElogbeta = n.exp(self._Elogbeta)
@@ -265,7 +265,7 @@ class OnlineLDA:
         # update pi based on documents
         self._omega = self._omega * (1 - rhot) + rhot * (self._mu + self._D * fstats / len(docs[0]))
         # hardcode equal probability for each the features
-        self._omega[:,0] = self._omega[:,0].mean()
+        self._omega[:,0] = self._omega[:,1:].mean()
         # update expectations
         self._Elogpi = dirichlet_expectation_2(self._omega)
         self._expElogpi = n.exp(self._Elogpi)
@@ -461,11 +461,11 @@ def main():
     parser.add_argument('--continue', '-c', action='store_true', dest='kontinue',
                         help='Continue computing from an existing model.')
     parser.add_argument('--eta', metavar='FLOAT', type=float,
-                        help='Hyperparamater eta. (Default 1/k)')
+                        help='Hyperparamater eta. (Default 1/V)')
     parser.add_argument('--alpha', metavar='FLOAT', type=float,
                         help='Hyperparameter alpha. (Default 1/k)')
     parser.add_argument('--mu', metavar='FLOAT', type=float,
-                        help='Hyperparameter mu. (Default 1/k)')
+                        help='Hyperparameter mu. (Default 1/F)')
     parser.add_argument('--randomseed', metavar='INT', type=int,
                         help='Supply the seed for the random number generator.')
     args = parser.parse_args()
@@ -488,8 +488,8 @@ def main():
     tau0 = args.tau0
     kappa = args.kappa
     numiterations = args.iterations
-    eta = args.eta and args.eta or 1./k
-    mu = args.mu and args.mu or 1./k
+    eta = args.eta and args.eta or 1./len(vocab)
+    mu = args.mu and args.mu or 1./len(feats)
     alpha = args.alpha and args.alpha or 1./k
 
     logging.info("Initializing OnlineLDA object.")
