@@ -30,7 +30,9 @@ from collections import Counter
 #from xmod import vdigamma as psi, vlngamma as gammaln
 from scipy.special import gammaln, psi
 from random import sample, seed
-from aesir import itersplit, row_norm, ONE_HOUR
+from aesir import itersplit, row_norm, ONE_HOUR, QUARTER_HOUR
+
+SAVE_FREQUENCY = QUARTER_HOUR
 
 logging.basicConfig(
     format="[ %(levelname)-10s %(module)-8s %(asctime)s  %(relativeCreated)-10d ]  %(message)s",
@@ -338,7 +340,8 @@ class OnlineLDA:
                 alpha = self._alpha,
                 times_doc_seen = self.times_doc_seen,
                 )
-        os.rename(filename + ".tmp.npz", filename)
+        modified_filename = filename.endswith(".npz") and filename[:-4] or filename
+        os.rename(filename + ".tmp.npz", "%s.%d.npz" % (modified_filename, self._updatect))
 
     def load_model(self, filename):
         m = n.load(filename)
@@ -381,9 +384,9 @@ class OnlineLDA:
                     (self._K, iteration, toc - tic, toc - bigtic, self._rhot, perwordbound, n.sum(self.times_doc_seen > 0), D))
                 self.perwordbounds.append(perwordbound)
                 self.timediffs.append((toc - tic).total_seconds())
-                if toc - save_tic >= ONE_HOUR:
+                if toc - save_tic >= SAVE_FREQUENCY:
                     save_tic = toc
-                    logging.info("Processed for one hour. Saving model to %s..." % model_file)
+                    logging.info("Processed for %s. Saving model to %s..." % (SAVE_FREQUENCY, model_file))
                     self.save_model(model_file)
         except KeyboardInterrupt:
             logging.info("Terminated early...")

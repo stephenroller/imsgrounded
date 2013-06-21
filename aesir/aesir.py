@@ -15,6 +15,7 @@ import zipfile
 log = np.log
 now = datetime.datetime.now
 ONE_HOUR = datetime.timedelta(hours=1)
+QUARTER_HOUR = datetime.timedelta(minutes=15)
 
 def safe_pi_read(filename):
     zipf = zipfile.ZipFile(filename)
