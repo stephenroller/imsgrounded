@@ -14,6 +14,9 @@ from itertools import chain
 COMP_FILE = '/home/01813/roller/tmp/imsgrounded/data/comp/comp-values_all_sorted.tsv'
 
 
+def utfopenwrite(filename):
+    return codecs.getwriter('utf-8')(open(filename, 'w'))
+
 def utfopen(filename):
     return codecs.getreader('utf-8')(open(filename))
 
