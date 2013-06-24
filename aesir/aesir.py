@@ -219,8 +219,7 @@ def dirichletrnd_array(a):
 
 def row_norm(a):
     row_sums = a.sum(axis=1)
-    a /= row_sums[:, np.newaxis]
-    return a
+    return a / row_sums[:, np.newaxis]
 
 # IO Stuff
 def itersplit(s, sub):
