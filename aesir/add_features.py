@@ -10,14 +10,9 @@ from aesir import itersplit
 
 def tocdf(nonnormalized_dist):
     normalized = np.array(nonnormalized_dist) / float(np.sum(nonnormalized_dist))
-    s = 0
-    cdf = []
-    for i, p in enumerate(normalized, 1):
-        if p == 0:
-            continue
-        s += p
-        cdf.append((i, s))
-    return cdf
+    ids = normalized.argsort()[::-1]
+    revsorted = normalized[ids]
+    return zip(ids + 1, revsorted.cumsum())
 
 def stochastic_choice(cdf):
     x = np.random.rand()
@@ -40,7 +35,7 @@ def word_ids_to_features(vocab_dist, feature_dists):
             continue
         wn = w[:w.rindex('/')]
         if wn in feature_dists:
-            output[wid] = feature_dists[wn]
+            output[str(wid)] = feature_dists[wn]
     logging.info("%d words have features." % len(output))
     return output
 
@@ -66,7 +61,7 @@ def main():
     inpt.close()
 
     logging.info("Starting second pass; actually writing output.")
-    output = open(args.output, 'w')
+    output = open(args.output, 'w', 1024*1024)
     inpt = utfopen(args.input)
     for lno, line in enumerate(inpt.readlines(), 1):
         if lno % 1000 == 0:
@@ -74,14 +69,16 @@ def main():
         for chunk in itersplit(line, ' '):
             chunk = chunk.rstrip()
             if not chunk: continue
-            wid, cnt = map(int, chunk.split(':'))
+            idx = chunk.rindex(":")
+            wid, cnt = chunk[:idx], chunk[idx+1:]
             if wid not in feature_map:
                 output.write(chunk + ' ')
             else:
+                cnt = int(cnt)
                 dist = feature_map[wid]
                 cnts = Counter(stochastic_choice(dist) for i in xrange(cnt))
                 for fid, cnt in cnts.iteritems():
-                    output.write('%d,%d:%d ' % (wid, fid, cnt))
+                    output.write('%s,%d:%d ' % (wid, fid, cnt))
         output.write('\n')
 
     inpt.close()
