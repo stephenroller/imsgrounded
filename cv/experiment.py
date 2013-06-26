@@ -119,7 +119,7 @@ def reduce_space(space, U, S, V, min_sigma=None, max_dim=None, latent_only=False
 
 def eval_space(vectors, comps, method='cos'):
     joined = comps.merge(vectors, left_on='compound', right_on='word').merge(vectors, left_on='const', right_on='word')
-    if method == 'cos':
+    if method == 'cos' or method == 'cosine':
         distfun = cosine
     elif method == 'euclid':
         distfun = euclid

@@ -14,7 +14,7 @@ def tryint(v):
 MIN_COUNT = 2
 ADD_MULTIPLE = True
 IGNORE_NONNN = False
-PRINT_IDS = True
+PRINT_IDS = False
 
 f = openfile(sys.argv[1])
 f.next()
