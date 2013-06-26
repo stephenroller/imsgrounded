@@ -15,6 +15,7 @@ import zipfile
 log = np.log
 now = datetime.datetime.now
 ONE_HOUR = datetime.timedelta(hours=1)
+QUARTER_HOUR = datetime.timedelta(minutes=15)
 
 def safe_pi_read(filename):
     zipf = zipfile.ZipFile(filename)
@@ -218,8 +219,7 @@ def dirichletrnd_array(a):
 
 def row_norm(a):
     row_sums = a.sum(axis=1)
-    a /= row_sums[:, np.newaxis]
-    return a
+    return a / row_sums[:, np.newaxis]
 
 # IO Stuff
 def itersplit(s, sub):

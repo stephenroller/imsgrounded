@@ -30,7 +30,9 @@ from collections import Counter
 #from xmod import vdigamma as psi, vlngamma as gammaln
 from scipy.special import gammaln, psi
 from random import sample, seed
-from aesir import itersplit, row_norm, ONE_HOUR
+from aesir import itersplit, row_norm, ONE_HOUR, QUARTER_HOUR
+
+SAVE_FREQUENCY = ONE_HOUR
 
 logging.basicConfig(
     format="[ %(levelname)-10s %(module)-8s %(asctime)s  %(relativeCreated)-10d ]  %(message)s",
@@ -77,7 +79,7 @@ class OnlineLDA:
     Implements online VB for LDA as described in (Hoffman et al. 2010).
     """
 
-    def __init__(self, vocab, feats, K, D, alpha, eta, mu, tau0, kappa):
+    def __init__(self, input_filename, vocab, feats, K, D, alpha, eta, mu, tau0, kappa):
         """
         Arguments:
         K: Number of topics
@@ -96,6 +98,8 @@ class OnlineLDA:
         Note that if you pass the same set of D documents in every time and
         set kappa=0 this class can also be used to do batch VB.
         """
+        self.input_filename = input_filename
+
         self._vocab = vocab
         self._feats = feats
         self._W = max(vocab) + 1
@@ -255,7 +259,10 @@ class OnlineLDA:
         # Update lambda based on documents.
         self._lambda = self._lambda * (1-rhot) + rhot * (self._eta + self._D * wstats / len(docs[0]))
         # hardcode equal probability for each of the zero words. technically this isn't necessary.
-        self._lambda[:,0] = self._lambda[:,0].mean()
+        if self._W > 1:
+            self._lambda[:,0] = self._lambda[:,1:].mean()
+        else:
+            self._lambda[:,0] = self._lambda.mean()
         # update expectations
         self._Elogbeta = dirichlet_expectation_2(self._lambda)
         self._expElogbeta = n.exp(self._Elogbeta)
@@ -263,7 +270,10 @@ class OnlineLDA:
         # update pi based on documents
         self._omega = self._omega * (1 - rhot) + rhot * (self._mu + self._D * fstats / len(docs[0]))
         # hardcode equal probability for each the features
-        self._omega[:,0] = self._omega[:,0].mean()
+        if self._F > 1:
+            self._omega[:,0] = self._omega[:,1:].mean()
+        else:
+            self._omega[:,0] = self._omega.mean()
         # update expectations
         self._Elogpi = dirichlet_expectation_2(self._omega)
         self._expElogpi = n.exp(self._Elogpi)
@@ -337,8 +347,14 @@ class OnlineLDA:
                 tau0 = self._tau0,
                 alpha = self._alpha,
                 times_doc_seen = self.times_doc_seen,
+                input_filename = self.input_filename,
                 )
-        os.rename(filename + ".tmp.npz", filename)
+        modified_filename = filename.endswith(".npz") and filename[:-4] or filename
+        versioned_filename = "%s.%d.npz" % (modified_filename, self._updatect)
+        os.rename(filename + ".tmp.npz", versioned_filename)
+        if os.path.exists(filename):
+            os.remove(filename)
+        os.symlink(os.path.abspath(versioned_filename), filename)
 
     def load_model(self, filename):
         m = n.load(filename)
@@ -353,6 +369,7 @@ class OnlineLDA:
         self.timediffs = list(m['timediffs'])
         self.perwordbounds = list(m['perwordbounds'])
         self.times_doc_seen = m['times_doc_seen']
+        self.input_filename = str(m['input_filename'])
 
         # reinitialize the variational distribution q(beta|lambda)
         self._Elogbeta = dirichlet_expectation_2(self._lambda)
@@ -366,6 +383,7 @@ class OnlineLDA:
         batchsize = min(batchsize, D)
         # keep track of docs seen
         bigtic = datetime.datetime.now()
+        shouldsave = True
         try:
             save_tic = datetime.datetime.now()
             for iteration in xrange(self._updatect + 1, max_iterations + 1):
@@ -375,15 +393,19 @@ class OnlineLDA:
                 (gamma, bound) = self.update_lambda(docset)
                 (wordcts, wordids, featids) = parse_doc_list(docset)
                 perwordbound = bound * len(docset_ids) / (D * sum(n.sum(doc) for doc in wordcts))
+                if n.isnan(perwordbound):
+                    logging.error("perwordbound is nan. Cleaning up without saving.")
+                    shouldsave = False
+                    break
                 toc = datetime.datetime.now()
                 self.times_doc_seen[docset_ids] += 1
                 logging.info('(%4d) %4d [%15s/%15s]:  rho_t = %1.5f,  perwordbound = (%8f) [seen = %d/%d]' %
                     (self._K, iteration, toc - tic, toc - bigtic, self._rhot, perwordbound, n.sum(self.times_doc_seen > 0), D))
                 self.perwordbounds.append(perwordbound)
                 self.timediffs.append((toc - tic).total_seconds())
-                if toc - save_tic >= ONE_HOUR:
+                if toc - save_tic >= SAVE_FREQUENCY:
+                    logging.info("Processed for %s > %s. Saving model to %s..." % (toc - save_tic, SAVE_FREQUENCY, model_file))
                     save_tic = toc
-                    logging.info("Processed for one hour. Saving model to %s..." % model_file)
                     self.save_model(model_file)
         except KeyboardInterrupt:
             logging.info("Terminated early...")
@@ -391,8 +413,9 @@ class OnlineLDA:
 
         bigtoc = datetime.datetime.now()
         logging.info("Total learning runtime: %s" % (bigtoc - bigtic))
-        logging.info("Done with training. Saving model...")
-        self.save_model(model_file)
+        if shouldsave:
+            logging.info("Done with training. Saving model...")
+            self.save_model(model_file)
 
 
 
@@ -435,7 +458,7 @@ def read_andrews(filename):
     wordcts = n.array(wordcts)
 
     toc = datetime.datetime.now()
-    logging.info("finished reading corpus. (took %s)" % (toc - tic))
+    logging.info("Finished reading corpus. (took %s)" % (toc - tic))
 
     return (wordcts, wordids, featids)
 
@@ -458,11 +481,11 @@ def main():
     parser.add_argument('--continue', '-c', action='store_true', dest='kontinue',
                         help='Continue computing from an existing model.')
     parser.add_argument('--eta', metavar='FLOAT', type=float,
-                        help='Hyperparamater eta. (Default 1/k)')
+                        help='Hyperparamater eta. (Default 1/V)')
     parser.add_argument('--alpha', metavar='FLOAT', type=float,
                         help='Hyperparameter alpha. (Default 1/k)')
     parser.add_argument('--mu', metavar='FLOAT', type=float,
-                        help='Hyperparameter mu. (Default 1/k)')
+                        help='Hyperparameter mu. (Default 1/F)')
     parser.add_argument('--randomseed', metavar='INT', type=int,
                         help='Supply the seed for the random number generator.')
     args = parser.parse_args()
@@ -474,7 +497,6 @@ def main():
     logging.info("Online Variational Bayes inference.")
     logging.info("Calling read_andrews")
     corpus = read_andrews(args.input)
-    logging.info("Finished reading corpus.")
 
     D = len(corpus[0])
     vocab = range(max(wid for doc in corpus[1] for wid in doc)+1)
@@ -485,12 +507,12 @@ def main():
     tau0 = args.tau0
     kappa = args.kappa
     numiterations = args.iterations
-    eta = args.eta and args.eta or 1./k
-    mu = args.mu and args.mu or 1./k
+    eta = args.eta and args.eta or 1./len(vocab)
+    mu = args.mu and args.mu or 1./len(feats)
     alpha = args.alpha and args.alpha or 1./k
 
     logging.info("Initializing OnlineLDA object.")
-    olda = OnlineLDA(vocab, feats, k, D, alpha, eta, mu, tau0, kappa)
+    olda = OnlineLDA(args.input, vocab, feats, k, D, alpha, eta, mu, tau0, kappa)
     if args.kontinue:
         logging.info("Attemping to resume from %s." % args.output)
         try:

@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 import sys
 import codecs
+from aesir import row_norm
 
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
 
@@ -61,10 +62,10 @@ def main():
 
     model = np.load(args.model)
     #from onlineldavb import dirichlet_expectation
-    phi = np.ascontiguousarray(model['phi'])
+    phi = row_norm(np.ascontiguousarray(model['phi']))
     #phi = np.ascontiguousarray(model['expElogbeta'])
     #phi = np.exp(dirichlet_expectation(phi))
-    psi = np.ascontiguousarray(model['psi'])
+    psi = row_norm(np.ascontiguousarray(model['psi']))
 
     label_vocab = load_labels(args.vocab)
     label_features = load_labels(args.features)
@@ -80,7 +81,7 @@ def main():
     if args.topics or args.detailedtopics:
         for k in xrange(model['k']):
             bestphi = ranked_list(phi[k], TOPIC_WORDS_SHOW)
-            bestpsi = ranked_list(psi[k][1:], TOPIC_FEATS_SHOW)
+            bestpsi = ranked_list(psi[k], TOPIC_FEATS_SHOW)
 
             topic_str = []
             topic_str.append("Topic %d:" % k)
