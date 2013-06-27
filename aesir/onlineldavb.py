@@ -175,14 +175,15 @@ class OnlineLDA:
             expElogthetad = expElogtheta[d]
 
             Elogbetad = n.take(self._Elogbeta, wids, axis=1)
-            expElogbetad = n.take(self._expElogbeta, wids, axis=1)
+            #expElogbetad = n.take(self._expElogbeta, wids, axis=1)
             Elogpid = n.take(self._Elogpi, fids, axis=1)
-            expElogpid = n.take(self._expElogpi, fids, axis=1)
+            #expElogpid = n.take(self._expElogpi, fids, axis=1)
+            likelihoods = n.exp(Elogbetad + Elogpid)
 
             # The optimal phi_{dwk} is proportional to
             #    expElogthetad_k * expElogbetad_w * expElogpid_f = exp { Elogthetad_k + Elogbetad_w  + Elogpid_f }
             # phinorm is the normalizer.
-            phinorm = n.dot(expElogthetad, n.multiply(expElogbetad, expElogpid)) + 1e-100
+            phinorm = n.dot(expElogthetad, likelihoods) + 1e-100
 
             # Iterate between gamma and phi until convergence
             for it in range(0, 100):
@@ -192,10 +193,10 @@ class OnlineLDA:
                 # We represent phi implicitly to save memory and time.
                 # Substituting the value of the optimal phi back into
                 # the update for gamma gives this update. Cf. Lee&Seung 2001.
-                gammad = self._alpha + expElogthetad * n.dot(cts / phinorm, expElogbetad.T * expElogpid.T)
+                gammad = self._alpha + expElogthetad * n.dot(cts / phinorm, likelihoods.T)
                 Elogthetad = dirichlet_expectation_1(gammad)
                 expElogthetad = n.exp(Elogthetad)
-                phinorm = n.dot(expElogthetad, n.multiply(expElogbetad, expElogpid)) + 1e-100
+                phinorm = n.dot(expElogthetad, likelihoods) + 1e-100
 
                 # If gamma hasn't changed much, we're done.
                 meanchange = n.sum(n.abs(gammad - lastgamma))

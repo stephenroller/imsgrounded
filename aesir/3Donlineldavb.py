@@ -185,16 +185,17 @@ class OnlineLDA:
             expElogthetad = expElogtheta[d]
 
             Elogbetad = n.take(self._Elogbeta, wids, axis=1)
-            expElogbetad = n.take(self._expElogbeta, wids, axis=1)
+            #expElogbetad = n.take(self._expElogbeta, wids, axis=1)
             Elogpid = n.take(self._Elogpi, fids, axis=1)
-            expElogpid = n.take(self._expElogpi, fids, axis=1)
+            #expElogpid = n.take(self._expElogpi, fids, axis=1)
             Elogpi2d = n.take(self._Elogpi2, f2ids, axis=1)
-            expElogpi2d = n.take(self._expElogpi2, f2ids, axis=1)
+            #expElogpi2d = n.take(self._expElogpi2, f2ids, axis=1)
 
             # The optimal phi_{dwk} is proportional to
             #    expElogthetad_k * expElogbetad_w * expElogpid_f = exp { Elogthetad_k + Elogbetad_w  + Elogpid_f }
             # phinorm is the normalizer.
-            phinorm = n.dot(expElogthetad, n.exp(Elogbetad + Elogpid + Elogpi2d)) + 1e-100
+            likelihoods = n.exp(Elogbetad + Elogpid + Elogpi2d)
+            phinorm = n.dot(expElogthetad, likelihoods) + 1e-100
 
             # Iterate between gamma and phi until convergence
             for it in range(0, 100):
@@ -204,10 +205,10 @@ class OnlineLDA:
                 # We represent phi implicitly to save memory and time.
                 # Substituting the value of the optimal phi back into
                 # the update for gamma gives this update. Cf. Lee&Seung 2001.
-                gammad = self._alpha + expElogthetad * n.dot(cts / phinorm, n.exp(Elogbetad.T + Elogpid.T + Elogpi2d.T))
+                gammad = self._alpha + expElogthetad * n.dot(cts / phinorm, likelihoods.T)
                 Elogthetad = dirichlet_expectation_1(gammad)
                 expElogthetad = n.exp(Elogthetad)
-                phinorm = n.dot(expElogthetad, n.exp(Elogbetad + Elogpid + Elogpi2d)) + 1e-100
+                phinorm = n.dot(expElogthetad, likelihoods) + 1e-100
 
                 # If gamma hasn't changed much, we're done.
                 meanchange = n.sum(n.abs(gammad - lastgamma))
@@ -333,7 +334,7 @@ class OnlineLDA:
             wids = wordids[d]
             fids = featids[d]
             f2ids = feat2ids[d]
-            cts = n.array(wordcts[d])
+            cts = wordcts[d]
             right0 = n.take(self._Elogbeta, wids, axis=1).T
             right1 = n.take(self._Elogpi, fids, axis=1).T
             right2 = n.take(self._Elogpi2, f2ids, axis=1).T
