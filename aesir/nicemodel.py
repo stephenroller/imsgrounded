@@ -48,6 +48,8 @@ def main():
                         help='The vocab labels.')
     parser.add_argument('--features', '-f', metavar='FILE',
                         help='The feature labels.')
+    parser.add_argument('--features2', '-g', metavar='FILE',
+                        help='The feature2 labels.')
     parser.add_argument('--docs', '-D', metavar='FILE',
                         help='Output the document distributions for these documents.')
     parser.add_argument('--docids', '-d', metavar='FILE',
@@ -66,9 +68,11 @@ def main():
     #phi = np.ascontiguousarray(model['expElogbeta'])
     #phi = np.exp(dirichlet_expectation(phi))
     psi = row_norm(np.ascontiguousarray(model['psi']))
+    psi2 = row_norm(np.ascontiguousarray(model['psi2']))
 
     label_vocab = load_labels(args.vocab)
     label_features = load_labels(args.features)
+    label_features2 = load_labels(args.features2)
 
     #print "Loglikelihood: %.5f" % model["loglikelihoods"][-1]
 
@@ -82,6 +86,7 @@ def main():
         for k in xrange(model['k']):
             bestphi = ranked_list(phi[k], TOPIC_WORDS_SHOW)
             bestpsi = ranked_list(psi[k], TOPIC_FEATS_SHOW)
+            bestpsi2 = ranked_list(psi2[k], TOPIC_FEATS_SHOW)
 
             topic_str = []
             topic_str.append("Topic %d:" % k)
@@ -91,6 +96,9 @@ def main():
             topic_str.append("  Psi (features):")
             for i, p in bestpsi:
                 topic_str.append("    %.5f  %s" % (p, label_features.get(i, "feat_%d" % i)))
+            topic_str.append("  Psi2 (features):")
+            for i, p in bestpsi2:
+                topic_str.append("    %.5f  %s" % (p, label_features2.get(i, "feat2_%d" % i)))
 
             if args.topics:
                 print '\n'.join(topic_str)
